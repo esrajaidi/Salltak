@@ -19,7 +19,7 @@ $reflection = new ReflectionClass($adapter);
 $extract = $reflection->getMethod('extractProducts');
 $extract->setAccessible(true);
 $sampleHtml = <<<'HTML'
-<html><script>window.__INITIAL_STATE__ = {"cartShareData":{"goods_list":[{"goods_id":"1","goods_name":"Dress","goods_img":"//img.test/a.jpg","salePrice":{"amount":"49.90","currency":"AED"},"cart_quantity":2,"size":"M","color":"Black"},{"goods_id":"2","goods_name":"Bag","goods_img":"//img.test/b.jpg","salePrice":{"amount":"25","currency":"AED"},"quantity":1}]}};</script></html>
+<html><script>window.__INITIAL_STATE__ = {"cartShareData":{"goods_list":[{"goods_id":"1","goods_name":"Dress","goods_img":"//img.test/a.jpg","salePrice":{"amount":"49.90","amountWithSymbol":"SR49.90","usdAmount":"13.29","usdAmountWithSymbol":"$13.29","currency":"AED"},"cart_quantity":2,"size":"M","color":"Black"},{"goods_id":"2","goods_name":"Bag","goods_img":"//img.test/b.jpg","salePrice":{"amount":"25","amountWithSymbol":"SR25.00","usdAmount":"6.66","usdAmountWithSymbol":"$6.66","currency":"AED"},"quantity":1}]}};</script></html>
 HTML;
 $sampleItems = $extract->invoke(
     $adapter,
@@ -112,7 +112,8 @@ $checks = [
     'subdomain matching' => $classifier->domainMatches('m.example.com', ['example.com']) === true,
     'SHEIN embedded cart item count' => count($sampleItems) === 2,
     'SHEIN cart quantity' => ($sampleItems[0]['quantity'] ?? 0) === 2,
-    'SHEIN cart currency' => ($sampleItems[0]['currency'] ?? '') === 'AED',
+    'SHEIN cart currency forced to USD' => ($sampleItems[0]['currency'] ?? '') === 'USD',
+    'SHEIN cart uses usdAmount' => abs((float) ($sampleItems[0]['unit_price_original'] ?? 0) - 13.29) < 0.001,
     'SHEIN cart variant' => ($sampleItems[0]['size'] ?? '') === 'M' && ($sampleItems[0]['color'] ?? '') === 'Black',
     'SHEIN escaped app-state extraction' => count($escapedItems) === 1 && ($escapedItems[0]['name'] ?? '') === 'Shoes',
     'SHEIN nested quantity extraction' => ($escapedItems[0]['quantity'] ?? 0) === 3,

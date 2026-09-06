@@ -110,6 +110,25 @@ function findAmount(value, depth = 0) {
   return 0;
 }
 
+function findUsdAmount(value, depth = 0) {
+  if (depth > 5 || value === null || value === undefined) return 0;
+  if (typeof value === 'object') {
+    if (!Array.isArray(value)) {
+      for (const key of ['usdAmount', 'usd_amount', 'usdPrice', 'usd_price']) {
+        if (Object.prototype.hasOwnProperty.call(value, key)) {
+          const amount = findAmount(value[key], depth + 1);
+          if (amount > 0) return amount;
+        }
+      }
+    }
+    for (const child of Object.values(value)) {
+      const amount = findUsdAmount(child, depth + 1);
+      if (amount > 0) return amount;
+    }
+  }
+  return 0;
+}
+
 function findCurrency(value, fallback = '') {
   const visit = (v, depth = 0) => {
     if (depth > 4 || v === null || v === undefined) return '';
@@ -251,7 +270,9 @@ function candidateFromNode(node, pathParts, baseUrl, fallbackCurrency) {
     'productPromotionPrice', 'promotionPrice', 'unit_price', 'unitPrice', 'price', 'priceInfo', 'price_info',
     'retailPrice', 'retail_price', 'retailPriceInfo', 'mallPrice', 'mall_price', 'amount'
   ]);
-  const price = findAmount(priceValue);
+  const usdPrice = findUsdAmount(priceValue);
+  const explicitCurrency = findCurrency(priceValue, '').toUpperCase();
+  const price = usdPrice > 0 ? usdPrice : (explicitCurrency === 'USD' ? findAmount(priceValue) : 0);
   if ((!name && !externalId) || price <= 0) return null;
 
   const pathText = pathParts.join('.').toLowerCase();
@@ -296,7 +317,7 @@ function candidateFromNode(node, pathParts, baseUrl, fallbackCurrency) {
     size,
     quantity: Math.max(1, Number(qtyRaw || 1) || 1),
     unit_price_original: price,
-    currency: findCurrency(priceValue, fallbackCurrency).toUpperCase(),
+    currency: 'USD',
   };
 }
 
@@ -403,7 +424,7 @@ if (!allowedMainUrl(targetUrl)) {
   const payloadKeys = new Set();
   const responseMeta = [];
   const networkItems = [];
-  const fallbackCurrency = currencyFromUrl(targetUrl);
+  const fallbackCurrency = 'USD';
 
   try {
     context = await chromium.launchPersistentContext(profileDir, {
@@ -532,16 +553,15 @@ if (!allowedMainUrl(targetUrl)) {
       const parsePrice = (text, fallback = '') => {
         const clean = String(text || '').replace(/,/g, ' ');
         const withCurrency = [
-          /(?:AED|د\.?إ|SAR|ر\.?س|USD|\$|EUR|€|GBP|£|KWD|QAR|BHD|OMR|TRY)\s*([0-9]+(?:\.[0-9]{1,4})?)/i,
-          /([0-9]+(?:\.[0-9]{1,4})?)\s*(?:AED|د\.?إ|SAR|ر\.?س|USD|\$|EUR|€|GBP|£|KWD|QAR|BHD|OMR|TRY)/i,
+          /(?:USD|\$)\s*([0-9]+(?:\.[0-9]{1,4})?)/i,
+          /([0-9]+(?:\.[0-9]{1,4})?)\s*(?:USD|\$)/i,
         ];
         for (const re of withCurrency) {
           const m = clean.match(re);
           const n = Number(m?.[1] || 0);
           if (Number.isFinite(n) && n > 0) return n;
         }
-        const attr = Number(fallback || 0);
-        return Number.isFinite(attr) && attr > 0 ? attr : 0;
+        return 0;
       };
       const attrValue = (text, labels) => {
         const lines = String(text || '').split(/\n|\||·/).map(x => x.trim()).filter(Boolean);

@@ -32,7 +32,7 @@ class SheinShareAdapter implements CartSourceAdapter
     public function import(string $url, ?Store $store = null): ImportResult
     {
         $shareMeta = $this->shareMeta($url);
-        $fallbackCurrency = $this->currencyFromUrl($url) ?: ($store?->currency ?: 'USD');
+        $fallbackCurrency = 'USD';
         $httpStatus = null;
         $httpError = null;
 
@@ -690,7 +690,7 @@ class SheinShareAdapter implements CartSourceAdapter
         }
 
         if (is_array($value)) {
-            foreach (['amount', 'saleAmount', 'price', 'value', 'usdAmount'] as $key) {
+            foreach (['usdAmount', 'usd_amount', 'amount', 'saleAmount', 'price', 'value'] as $key) {
                 if (array_key_exists($key, $value)) {
                     $amount = $this->priceAmount($value[$key]);
                     if ($amount > 0) {
@@ -707,6 +707,12 @@ class SheinShareAdapter implements CartSourceAdapter
     {
         if (! is_array($value)) {
             return null;
+        }
+
+        foreach (['usdAmount', 'usd_amount'] as $key) {
+            if (array_key_exists($key, $value) && $this->priceAmount($value[$key]) > 0) {
+                return 'USD';
+            }
         }
 
         foreach (['currency', 'currencyCode', 'currency_code'] as $key) {

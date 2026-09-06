@@ -50,12 +50,12 @@ class DatabaseSeeder extends Seeder
         if (! Cart::where('user_id',$customer->id)->exists()) {
             $cart = Cart::create([
                 'user_id'=>$customer->id,'store_id'=>$shein->id,'source_url'=>'https://m.shein.com/ar/cart/share/landing?shc=demo&group_id=demo&local_country=AE&cart_share=1',
-                'source_host'=>'m.shein.com','source_currency'=>'AED','exchange_rate'=>1.91,'subtotal_original'=>35,
-                'total_lyd'=>66.85,'status'=>'saved','import_status'=>'success','import_message'=>'سلة تجريبية',
+                'source_host'=>'m.shein.com','source_currency'=>'USD','exchange_rate'=>7.00,'subtotal_original'=>9.32,
+                'total_lyd'=>65.24,'status'=>'saved','import_status'=>'success','import_message'=>'سلة تجريبية',
             ]);
             $cart->items()->createMany([
-                ['name'=>'حقيبة تجريبية','quantity'=>1,'unit_price_original'=>20,'line_total_original'=>20,'currency'=>'AED'],
-                ['name'=>'قميص تجريبي','quantity'=>1,'unit_price_original'=>15,'line_total_original'=>15,'currency'=>'AED'],
+                ['name'=>'حقيبة تجريبية','quantity'=>1,'unit_price_original'=>5.33,'line_total_original'=>5.33,'currency'=>'USD'],
+                ['name'=>'قميص تجريبي','quantity'=>1,'unit_price_original'=>3.99,'line_total_original'=>3.99,'currency'=>'USD'],
             ]);
         }
     }

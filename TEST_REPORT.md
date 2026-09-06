@@ -62,3 +62,9 @@ php artisan test
 ```
 
 A successful `npm run browser:smoke` confirms Playwright Chromium is installed and launchable locally. The actual SHEIN import can then be tested with the real Share Cart URL.
+
+## V8 USD-first SHEIN pricing
+- Shared-cart price source: `usdAmount`.
+- Shared-cart currency: `USD`.
+- `local_country=AE` no longer forces AED for SHEIN shared-cart totals.
+- USD to LYD uses the active USD exchange rate.

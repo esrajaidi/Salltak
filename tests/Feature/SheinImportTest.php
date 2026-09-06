@@ -52,7 +52,7 @@ window.__INITIAL_STATE__ = {
         "goods_name":"فستان نسائي",
         "goods_img":"//img.ltwebstatic.com/a.jpg",
         "product_url":"/ar/product-a-p-10001.html",
-        "salePrice":{"amount":"49.90","currency":"AED"},
+        "salePrice":{"amount":"49.90","usdAmount":"13.29","currency":"AED"},
         "cart_quantity":2,
         "color":"Black",
         "size":"M"
@@ -63,7 +63,7 @@ window.__INITIAL_STATE__ = {
         "goods_name":"حقيبة يد",
         "goods_img":"//img.ltwebstatic.com/b.jpg",
         "product_url":"/ar/product-b-p-10002.html",
-        "salePrice":{"amount":"25.00","currency":"AED"},
+        "salePrice":{"amount":"25.00","usdAmount":"6.66","currency":"AED"},
         "quantity":1,
         "color":"Brown"
       }
@@ -78,14 +78,14 @@ HTML;
             ->assertOk()
             ->assertSee('فستان نسائي')
             ->assertSee('حقيبة يد')
-            ->assertSee('49.9')
-            ->assertSee('25')
-            ->assertSee('AED')
+            ->assertSee('13.29')
+            ->assertSee('6.66')
+            ->assertSee('USD')
             ->assertSee('Black')
             ->assertSee('M');
     }
 
-    public function test_share_landing_uses_aed_from_local_country_when_page_hides_items(): void
+    public function test_share_landing_uses_usd_even_when_local_country_is_ae_when_page_hides_items(): void
     {
         $user = $this->seedShein();
         Http::fake(['*' => Http::response('<html><body>app shell only</body></html>', 200)]);
@@ -93,7 +93,7 @@ HTML;
 
         $this->actingAs($user)->post('/my-carts/analyze', ['source_url' => self::SHARE_URL])
             ->assertOk()
-            ->assertSee('AED')
+            ->assertSee('USD')
             ->assertSee('تشغيل JavaScript');
     }
 
@@ -106,7 +106,7 @@ HTML;
         $this->actingAs($user)->post('/my-carts/analyze', ['source_url' => self::SHARE_URL])
             ->assertOk()
             ->assertSee('SHEIN منع الطلب المباشر')
-            ->assertSee('AED');
+            ->assertSee('USD');
     }
 
     public function test_share_landing_extracts_escaped_nested_app_state(): void
@@ -122,7 +122,7 @@ HTML;
             ->assertSee('حذاء نسائي')
             ->assertSee('White')
             ->assertSee('39')
-            ->assertSee('19.5')
+            ->assertSee('5.19')
             ->assertSee('إجمالي المنتج')
             ->assertSee('30003');
     }
@@ -143,8 +143,8 @@ HTML;
                 'color' => 'Black',
                 'size' => 'M',
                 'quantity' => 2,
-                'unit_price_original' => 55.75,
-                'currency' => 'AED',
+                'unit_price_original' => 14.85,
+                'currency' => 'USD',
             ]],
             'payloads' => [],
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES))]);
@@ -154,9 +154,9 @@ HTML;
             ->assertSee('طقم نسائي من SHEIN')
             ->assertSee('Black')
             ->assertSee('M')
-            ->assertSee('55.75')
+            ->assertSee('14.85')
             ->assertSee('99112233')
-            ->assertSee('AED');
+            ->assertSee('USD');
 
         Process::assertRan([(string) config('services.cart_import.shein_browser.node_binary', 'node'), base_path('scripts/shein-browser-import.mjs')]);
     }
