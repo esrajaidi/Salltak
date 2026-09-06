@@ -1,0 +1,13 @@
+{
+  "name": "cartly-libya-browser-worker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "browser:install": "playwright install chromium",
+    "browser:check": "node --check scripts/shein-browser-import.mjs",
+    "browser:smoke": "node scripts/shein-browser-check.mjs"
+  },
+  "dependencies": {
+    "playwright-chromium": "1.62.1"
+  }
+}

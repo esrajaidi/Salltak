@@ -1,0 +1,40 @@
+Cartly Libya — Laravel 13 / Bootstrap 5 RTL / SHEIN Playwright Importer
+
+Core:
+- Laravel customer authentication and saved carts
+- Cart items with image/name/SKU/color/size/variant/price/quantity
+- Exchange rates and LYD totals
+- Admin dashboard/users/carts/stores/rates/settings
+- Bootstrap 5 responsive RTL UI
+
+SHEIN import pipeline:
+1. Raw HTTP HTML parser
+2. Embedded JSON / JSON-LD / escaped React/Next state parser
+3. Playwright Chromium fallback when JavaScript is required
+4. JSON/XHR response capture
+5. DOM product-card extraction
+6. Security challenge detection
+7. Optional headed Chromium mode on Mac with persistent local profile
+
+Browser files:
+- app/Services/CartImport/Browser/SheinBrowserImporter.php
+- scripts/shein-browser-import.mjs
+- scripts/shein-browser-check.mjs
+- package.json (playwright-chromium 1.62.1)
+
+Environment flags:
+- SHEIN_BROWSER_ENABLED
+- SHEIN_BROWSER_NODE
+- SHEIN_BROWSER_HEADLESS
+- SHEIN_BROWSER_TIMEOUT_MS
+- SHEIN_BROWSER_PROCESS_TIMEOUT
+- SHEIN_BROWSER_MANUAL_CHALLENGE_WAIT_MS
+- SHEIN_BROWSER_PROFILE_DIR
+
+Tests during packaging:
+- 18/18 PHP smoke checks PASS
+- 10/10 UI checks PASS
+- 58 PHP files lint PASS
+- Node syntax checks PASS
+
+See README.md and TEST_REPORT.md for install/run details.
