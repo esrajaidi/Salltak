@@ -3,6 +3,7 @@ import net from 'node:net';
 import path from 'node:path';
 import process from 'node:process';
 import { chromium } from 'playwright-chromium';
+import { parseSheinGoodsAttr } from './shein-goods-attr.mjs';
 
 const MAX_PAYLOADS = 30;
 const MAX_PAYLOAD_BYTES = 2_500_000;
@@ -273,8 +274,9 @@ function candidateFromNode(node, pathParts, baseUrl, fallbackCurrency) {
   if (looksLikeMarkupNoise(name) || looksLikeMarkupNoise(externalId)) return null;
 
   const attrs = variantAttrs(view);
-  const color = firstScalar(view, ['color', 'color_name', 'colorName', 'goods_color', 'goodsColor']) || attrs.color;
-  const size = firstScalar(view, ['size', 'size_name', 'sizeName', 'goods_size', 'goodsSize']) || attrs.size;
+  const goodsAttr = parseSheinGoodsAttr(firstScalar(view, ['goodsAttr', 'goods_attr']));
+  const color = firstScalar(view, ['color', 'color_name', 'colorName', 'goods_color', 'goodsColor']) || attrs.color || goodsAttr.color;
+  const size = firstScalar(view, ['size', 'size_name', 'sizeName', 'goods_size', 'goodsSize']) || attrs.size || goodsAttr.size;
   const variant = firstScalar(view, ['variant', 'sku_name', 'skuName', 'attr_value', 'attrValue', 'skc_name', 'skcName', 'sku_code', 'skuCode', 'sku_id', 'skuId']) || attrs.variant;
   const imageValue = firstValue(view, ['goods_img', 'goodsImg', 'goods_image', 'goodsImage', 'product_img', 'productImage', 'image_url', 'imageUrl', 'image', 'thumbnail', 'thumb', 'main_image', 'mainImage', 'images']);
   const image = imageFrom(imageValue);
