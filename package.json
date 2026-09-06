@@ -7,7 +7,7 @@
     "browser:check": "node --check scripts/shein-browser-import.mjs",
     "browser:smoke": "node scripts/shein-browser-check.mjs"
   },
-  "devDependencies": {
-    "playwright-chromium": "^1.62.1"
+  "dependencies": {
+    "playwright-chromium": "1.62.1"
   }
 }

@@ -7,7 +7,7 @@ import { chromium } from 'playwright-chromium';
 const MAX_PAYLOADS = 30;
 const MAX_PAYLOAD_BYTES = 2_500_000;
 const MAX_HTML_BYTES = 3_000_000;
-const MAX_ITEMS = 120;
+const MAX_ITEMS = 60;
 
 function output(data, exitCode = 0) {
   process.stdout.write(JSON.stringify(data));
@@ -219,7 +219,19 @@ function excludedProductContext(pathText) {
 }
 
 function strongCartContext(pathText) {
-  return /(cartshare|cart_share|sharecart|share_cart|cartlist|cart_list|cartitems|cart_items|cartgoods|cart_goods|baglist|bag_list|basket|checkout|selectedgoods|selected_goods|selecteditems|selected_items|\/cart\/share\/landing)/i.test(pathText);
+  const text = String(pathText || '').toLowerCase();
+  const explicitShare = /(cartshare|cart_share|sharecart|share_cart|sharedcart|shared_cart)/i.test(text);
+  const explicitRows = /(cartlist|cart_list|cartitems|cart_items|cartgoods|cart_goods|baglist|bag_list|basketitems|basket_items|selectedgoods|selected_goods|selecteditems|selected_items)/i.test(text);
+  const cartBranch = /(cart|bag|basket|checkout)/i.test(text) && /(goods_list|goodslist|item_list|items|products|skus|sku_list|list)/i.test(text);
+  const responseHint = /(cart_response|shared_cart_response)/i.test(text);
+  return explicitShare || explicitRows || cartBranch || responseHint;
+}
+
+function looksLikeMarkupNoise(value) {
+  const s = String(value || '').trim();
+  if (!s) return false;
+  if (s.length > 700) return true;
+  return /<style|<script|sourceMappingURL|sourceURL=webpack|webpack:\/\/|data:application\/json;base64|\{[^}]{0,120}:[^}]{0,120}\}|(?:^|;)\s*[a-z-]{2,30}\s*:/i.test(s);
 }
 
 function candidateFromNode(node, pathParts, baseUrl, fallbackCurrency) {
@@ -241,20 +253,24 @@ function candidateFromNode(node, pathParts, baseUrl, fallbackCurrency) {
   const price = findAmount(priceValue);
   if ((!name && !externalId) || price <= 0) return null;
 
+  const pathText = pathParts.join('.').toLowerCase();
+  const trustedShareEndpoint = pathText.includes('cart_share_landing');
   const quantityKeys = [
     'quantity', 'qty', 'goods_num', 'goodsNum', 'goods_quantity', 'goodsQuantity', 'cart_quantity', 'cartQuantity',
-    'product_num', 'productNum', 'sku_num', 'skuNum', 'selected_num', 'selectedNum', 'buy_num', 'buyNum', 'count', 'num'
+    'product_num', 'productNum', 'sku_num', 'skuNum', 'selected_num', 'selectedNum', 'buy_num', 'buyNum',
+    ...(trustedShareEndpoint ? ['num', 'count', 'item_num', 'itemNum', 'purchase_num', 'purchaseNum'] : [])
   ];
   const qtyRaw = firstScalar(view, quantityKeys, '');
-  const pathText = pathParts.join('.').toLowerCase();
   const hasQty = qtyRaw !== '';
-  const cartContext = strongCartContext(pathText);
+  const cartContext = strongCartContext(pathText) || trustedShareEndpoint;
 
-  // SHEIN shared-cart pages also contain large recommendation/product feeds.
-  // Never treat those as cart rows. A real cart item must have an explicit
-  // cart quantity OR live inside a strong cart/share container.
+  // A SHEIN cart page contains recommendation feeds, styles, banners and product
+  // carousels. Only accept nodes that are actually inside a cart/share branch.
+  // Generic `count`/`num` fields are deliberately NOT treated as quantity.
   if (excludedProductContext(pathText)) return null;
-  if (!hasQty && !cartContext) return null;
+  if (!cartContext) return null;
+  if (!hasQty && !/(cartshare|cart_share|sharecart|share_cart|cartitems|cart_items|cartgoods|cart_goods|selectedgoods|selected_goods|selecteditems|selected_items)/i.test(pathText)) return null;
+  if (looksLikeMarkupNoise(name) || looksLikeMarkupNoise(externalId)) return null;
 
   const attrs = variantAttrs(view);
   const color = firstScalar(view, ['color', 'color_name', 'colorName', 'goods_color', 'goodsColor']) || attrs.color;
@@ -264,6 +280,9 @@ function candidateFromNode(node, pathParts, baseUrl, fallbackCurrency) {
   const image = imageFrom(imageValue);
   let productUrl = firstScalar(view, ['product_url', 'productUrl', 'goods_url', 'goodsUrl', 'url', 'detail_url', 'detailUrl', 'goodsLink', 'productLink', 'link']);
   if (!productUrl && externalId) productUrl = `/ar/p-${externalId}.html`;
+
+  if (!externalId && !image && !productUrl) return null;
+  if (looksLikeMarkupNoise(productUrl) || looksLikeMarkupNoise(image)) return null;
 
   return {
     external_id: externalId,
@@ -295,7 +314,18 @@ function extractItemsFromPayload(payload, baseUrl, fallbackCurrency, rootContext
       for (let i = 0; i < node.length; i++) walk(node[i], pathParts, depth + 1);
     } else {
       for (const [key, child] of Object.entries(node)) {
-        if (child && typeof child === 'object') walk(child, [...pathParts, key], depth + 1);
+        if (child && typeof child === 'object') {
+          walk(child, [...pathParts, key], depth + 1);
+          continue;
+        }
+        // Some SHEIN BFF responses embed subtrees as JSON strings. Only parse
+        // bounded JSON-looking values so normal labels / HTML are ignored.
+        if (typeof child === 'string' && child.length >= 2 && child.length <= 500_000 && /^[\s]*[\[{]/.test(child)) {
+          try {
+            const parsed = JSON.parse(child);
+            if (parsed && typeof parsed === 'object') walk(parsed, [...pathParts, key, 'json_string'], depth + 1);
+          } catch {}
+        }
       }
     }
   };
@@ -361,6 +391,7 @@ if (!allowedMainUrl(targetUrl)) {
   const timeoutMs = Math.min(90_000, Math.max(5_000, Number(input.timeoutMs || 35_000)));
   const headless = input.headless !== false;
   const manualChallengeWaitMs = Math.min(120_000, Math.max(0, Number(input.manualChallengeWaitMs || 0)));
+  const debug = input.debug === true;
   const profileDir = path.resolve(String(input.profileDir || path.join(process.cwd(), 'storage/app/shein-browser-profile')));
   fs.mkdirSync(profileDir, { recursive: true });
 
@@ -406,16 +437,34 @@ if (!allowedMainUrl(targetUrl)) {
         try { decoded = JSON.parse(text); } catch { return; }
         if (!decoded || typeof decoded !== 'object') return;
 
-        const found = extractItemsFromPayload(decoded, targetUrl, fallbackCurrency, [url]);
+        const explicitCartEndpoint = /(cart[^a-z0-9]*(?:share|list|items|goods)|(?:share|list|items|goods)[^a-z0-9]*cart|bag[^a-z0-9]*(?:list|items)|basket|checkout)/i.test(url);
+        const isShareLandingEndpoint = /\/bff-api\/order\/cart\/share\/landing(?:\?|$)/i.test(url);
+        const rootContext = isShareLandingEndpoint ? ['cart_response', 'cart_share_landing'] : (explicitCartEndpoint ? ['cart_response'] : []);
+        const found = extractItemsFromPayload(decoded, targetUrl, fallbackCurrency, rootContext);
         if (found.length) networkItems.push(...found);
 
-        const looksRelevant = found.length > 0 || /cart|share|goods|product|sku|checkout|bag|basket/i.test(url) || /goods[_A-Z]?id|product[_A-Z]?id|cart|sku/i.test(text.slice(0, 500_000));
+        const looksRelevant = found.length > 0 || explicitCartEndpoint || isShareLandingEndpoint || /cartshare|cart_share|sharecart|share_cart|cart_list|cart_items|cart_goods/i.test(text.slice(0, 500_000));
         if (!looksRelevant || payloads.length >= MAX_PAYLOADS) return;
         const key = `${url}|${text.slice(0, 220)}`;
         if (payloadKeys.has(key)) return;
         payloadKeys.add(key);
-        payloads.push(decoded);
-        responseMeta.push({ url, status: response.status(), matched_items: found.length });
+        // Always retain the exact shared-cart landing payload while debugging,
+        // even when zero items matched. This is the authoritative response we
+        // need to adapt to if SHEIN changes its schema.
+        if (debug || isShareLandingEndpoint || found.length) payloads.push(decoded);
+        const request = response.request();
+        const topKeys = decoded && typeof decoded === 'object' && !Array.isArray(decoded) ? Object.keys(decoded).slice(0, 30) : [];
+        responseMeta.push({
+          url,
+          status: response.status(),
+          method: request.method(),
+          post_data: isShareLandingEndpoint ? String(request.postData() || '').slice(0, 4000) : '',
+          content_type: contentType,
+          body_bytes: text.length,
+          top_keys: topKeys,
+          matched_items: found.length,
+          is_share_landing: isShareLandingEndpoint,
+        });
       } catch {
         // Streaming/binary/cancelled responses are expected on modern storefronts.
       }
@@ -478,11 +527,19 @@ if (!allowedMainUrl(targetUrl)) {
         if (!value) return '';
         try { if (String(value).startsWith('//')) return `https:${value}`; return new URL(value, location.href).href; } catch { return String(value); }
       };
-      const parsePrice = text => {
+      const parsePrice = (text, fallback = '') => {
         const clean = String(text || '').replace(/,/g, ' ');
-        const matches = [...clean.matchAll(/(?:AED|د\.?إ|ر\.?س|SAR|USD|\$|EUR|€|GBP|£|KWD|QAR|BHD|OMR)?\s*([0-9]+(?:\.[0-9]{1,4})?)/gi)];
-        const values = matches.map(m => Number(m[1])).filter(v => Number.isFinite(v) && v > 0);
-        return values[0] || 0;
+        const withCurrency = [
+          /(?:AED|د\.?إ|SAR|ر\.?س|USD|\$|EUR|€|GBP|£|KWD|QAR|BHD|OMR|TRY)\s*([0-9]+(?:\.[0-9]{1,4})?)/i,
+          /([0-9]+(?:\.[0-9]{1,4})?)\s*(?:AED|د\.?إ|SAR|ر\.?س|USD|\$|EUR|€|GBP|£|KWD|QAR|BHD|OMR|TRY)/i,
+        ];
+        for (const re of withCurrency) {
+          const m = clean.match(re);
+          const n = Number(m?.[1] || 0);
+          if (Number.isFinite(n) && n > 0) return n;
+        }
+        const attr = Number(fallback || 0);
+        return Number.isFinite(attr) && attr > 0 ? attr : 0;
       };
       const attrValue = (text, labels) => {
         const lines = String(text || '').split(/\n|\||·/).map(x => x.trim()).filter(Boolean);
@@ -493,41 +550,39 @@ if (!allowedMainUrl(targetUrl)) {
         }
         return '';
       };
-      const selectors = [
-        '[data-goods-id]', '[data-product-id]', '[data-sku-id]',
-        '[class*="cart-item"]', '[class*="cartItem"]', '[class*="goods-item"]', '[class*="goodsItem"]',
-        '[class*="product-item"]', '[class*="productItem"]', 'li[class*="cart"]', 'article[class*="product"]'
-      ];
-      const cards = [...new Set(selectors.flatMap(s => [...document.querySelectorAll(s)]))];
-      const items = [];
       const excludedContext = /(recommend|suggest|similar|related|guess|you-may-like|you_may_like|hot|feed|search|history|recent|viewed|wishlist|favorite|favourite|trend|flash|campaign|marketing)/i;
-      const cartContext = /(cart-item|cartitem|cart_list|cart-list|cartitems|cart-items|cart-share|cartshare|share-cart|sharecart|bag-item|bagitem|basket|checkout)/i;
+      const cartContainerSelector = '[class*="cart"], [id*="cart"], [data-testid*="cart"], [data-module*="cart"], [class*="bag"], [id*="bag"], [data-testid*="bag"]';
+      const rowSelector = '[data-goods-id], [data-product-id], [data-sku-id], [class*="cart-item"], [class*="cartItem"], [class*="bag-item"], [class*="bagItem"], [class*="item"]';
+      const containers = [...document.querySelectorAll(cartContainerSelector)].filter(el => !excludedContext.test(`${el.id || ''} ${el.className || ''} ${el.getAttribute?.('data-testid') || ''} ${el.getAttribute?.('data-module') || ''}`));
+      const cards = [...new Set(containers.flatMap(container => [...container.querySelectorAll(rowSelector)]))];
+      const items = [];
       for (const card of cards) {
         const lineage = [];
         let el = card;
-        for (let i = 0; el && i < 6; i++, el = el.parentElement) {
-          lineage.push(`${el.id || ''} ${el.className || ''} ${el.getAttribute?.('data-testid') || ''} ${el.getAttribute?.('data-module') || ''}`);
-        }
+        for (let i = 0; el && i < 8; i++, el = el.parentElement) lineage.push(`${el.id || ''} ${el.className || ''} ${el.getAttribute?.('data-testid') || ''} ${el.getAttribute?.('data-module') || ''}`);
         const contextText = lineage.join(' ');
-        if (excludedContext.test(contextText)) continue;
+        if (excludedContext.test(contextText) || !/(cart|bag|basket)/i.test(contextText)) continue;
 
         const text = (card.innerText || '').trim();
-        if (!text || text.length > 6000) continue;
-        const qtySignal = /(?:qty|quantity|الكمية|×|x)\s*[:：]?\s*\d{1,3}/i.test(text) || !!card.querySelector('input[type="number"], [class*="quantity"], [class*="qty"]');
-        if (!qtySignal && !cartContext.test(contextText)) continue;
-        const link = card.querySelector('a[href*="-p-"], a[href*="/product"], a[href*="goods"], a[href]');
+        if (!text || text.length > 3000) continue;
+        const qtyInput = card.querySelector('input[type="number"], input[class*="qty"], input[class*="quantity"]');
+        const qtyTextMatch = text.match(/(?:qty|quantity|الكمية)\s*[:：]?\s*(\d{1,3})/i) || text.match(/(?:^|\s)[×x]\s*(\d{1,3})(?:\s|$)/i);
+        const quantity = Number(qtyInput?.value || qtyTextMatch?.[1] || 0);
+        if (!Number.isFinite(quantity) || quantity < 1) continue;
+
+        const link = card.querySelector('a[href*="-p-"], a[href*="/product"], a[href*="goods"]');
         const href = abs(link?.getAttribute('href') || '');
         const img = card.querySelector('img');
         const image = abs(img?.currentSrc || img?.getAttribute('src') || img?.getAttribute('data-src') || img?.getAttribute('data-original') || '');
-        const nameNode = card.querySelector('[class*="name"], [class*="title"], [data-testid*="name"], [aria-label]');
-        const name = (link?.getAttribute('aria-label') || link?.getAttribute('title') || nameNode?.textContent || link?.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 500);
+        const nameNode = card.querySelector('[class*="name"], [class*="title"], [data-testid*="name"]');
+        const name = (link?.getAttribute('aria-label') || link?.getAttribute('title') || nameNode?.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 500);
         const id = card.getAttribute('data-goods-id') || card.getAttribute('data-product-id') || card.getAttribute('data-sku-id') || href.match(/(?:-p-|goods[_/-]?)(\d{5,})/i)?.[1] || '';
-        const quantity = Number(text.match(/(?:qty|quantity|الكمية|×|x)\s*[:：]?\s*(\d{1,3})/i)?.[1] || card.querySelector('input[type="number"]')?.value || 1);
+        const priceNode = card.querySelector('[class*="price"], [data-testid*="price"], [data-price]');
+        const price = parsePrice(priceNode?.textContent || '', priceNode?.getAttribute?.('data-price') || '');
+        if ((!name && !id) || (!image && !href) || price <= 0) continue;
         const color = attrValue(text, ['Color', 'Colour', 'اللون']);
         const size = attrValue(text, ['Size', 'المقاس']);
-        const price = parsePrice(text);
-        if ((!name && !id && !image) || price <= 0) continue;
-        items.push({ external_id: id, name, product_url: href, image_url: image, variant: '', color, size, quantity: Math.max(1, quantity || 1), unit_price_original: price, currency: fallbackCurrency });
+        items.push({ external_id: id, name, product_url: href, image_url: image, variant: '', color, size, quantity, unit_price_original: price, currency: fallbackCurrency });
       }
       return items;
     }, fallbackCurrency).catch(() => []);
@@ -553,9 +608,9 @@ if (!allowedMainUrl(targetUrl)) {
       title: await page.title().catch(() => ''),
       challenged,
       items,
-      payloads,
+      payloads: debug ? payloads : [],
       response_meta: responseMeta.slice(0, 40),
-      html,
+      html: debug ? html : '',
       meta: {
         headless,
         payload_count: payloads.length,
