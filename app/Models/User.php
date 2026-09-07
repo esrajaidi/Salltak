@@ -28,8 +28,23 @@ class User extends Authenticatable
         return $this->hasMany(Cart::class);
     }
 
+    public function orders()
+    {
+        return $this->hasMany(Order::class);
+    }
+
+    public function assignedOrders()
+    {
+        return $this->hasMany(Order::class, 'assigned_to');
+    }
+
     public function isAdmin(): bool
     {
         return $this->role === 'admin';
+    }
+
+    public function isBackoffice(): bool
+    {
+        return in_array($this->role, ['admin', 'order_manager'], true);
     }
 }

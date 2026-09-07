@@ -1,6 +1,6 @@
 <?php $__env->startSection('title',$cart->number); ?>
 <?php $__env->startSection('body'); ?>
-<section class="page-section">
+<section class="page-section customer-page">
     <div class="container">
         <?php ($statusClass = $cart->status === 'cancelled' ? 'status-danger' : ($cart->status === 'confirmed' ? 'status-success' : 'status-primary')); ?>
         <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 mb-4">
@@ -15,7 +15,7 @@
             <div class="col-6 col-lg-3"><div class="summary-tile is-primary h-100"><div class="summary-label">الإجمالي بالدينار</div><div class="summary-value text-primary fs-5"><?php echo e(number_format((float)$cart->total_lyd,2)); ?> د.ل</div></div></div>
         </div>
 
-        <div class="surface-card-elevated p-3 p-md-4">
+        <div class="surface-card-elevated reveal is-visible p-3 p-md-4">
             <div class="d-flex align-items-center justify-content-between gap-3 mb-2">
                 <div><h2 class="h5 fw-bold mb-1">منتجات السلة</h2><div class="small text-secondary">السعر الأصلي والسعر المحول محفوظان حسب سعر الصرف وقت إنشاء السلة.</div></div>
             </div>
@@ -53,6 +53,13 @@
             <div class="row g-3 mt-4 justify-content-end">
                 <div class="col-lg-5"><div class="cart-total-card"><div class="d-flex justify-content-between gap-3 mb-2"><span class="summary-label">الإجمالي الأصلي</span><strong class="ltr"><?php echo e(number_format((float)$cart->subtotal_original,2)); ?> <?php echo e($cart->source_currency); ?></strong></div><div class="d-flex align-items-end justify-content-between gap-3"><span class="summary-label">الإجمالي بالدينار</span><strong class="lyd-grand"><?php echo e(number_format((float)$cart->total_lyd,2)); ?> د.ل</strong></div></div></div>
             </div>
+
+            <?php if($cart->status!=='cancelled'): ?>
+                <div class="order-request-banner mt-4">
+                    <div><div class="page-kicker">جاهز للشراء؟</div><h3 class="h5 fw-bold mb-1">حوّل السلة إلى طلب للمراجعة</h3><p class="small text-secondary mb-0">سيقوم المسؤول بمراجعة كل منتج والسعر، وبعد الاعتماد سيحدد العربون أو الدفعة المطلوبة.</p></div>
+                    <form method="POST" action="<?php echo e(route('orders.from-cart',$cart)); ?>"><?php echo csrf_field(); ?><button class="btn btn-primary" type="submit">اطلب هذه السلة</button></form>
+                </div>
+            <?php endif; ?>
 
             <div class="d-flex flex-column flex-sm-row gap-2 mt-4">
                 <?php if($cart->status!=='cancelled'): ?><form method="POST" action="<?php echo e(route('carts.cancel',$cart)); ?>"><?php echo csrf_field(); ?> <?php echo method_field('PATCH'); ?><button class="btn btn-danger-soft btn-mobile-full" type="submit">إلغاء السلة</button></form><?php endif; ?>

@@ -1,9 +1,9 @@
 @extends('layouts.admin')
 @section('title','إعدادات النظام')
 @section('admin-content')
-<div class="mb-4"><div class="small text-primary fw-bold mb-1">تخصيص المنصة</div><h1 class="page-heading">إعدادات النظام</h1><p class="page-subtitle">عدّل اسم المنصة وبيانات التواصل ونص الصفحة الرئيسية.</p></div>
+<div class="admin-page-header mb-4 reveal is-visible"><div class="small text-primary fw-bold mb-1">تخصيص المنصة</div><h1 class="page-heading">إعدادات النظام</h1><p class="page-subtitle">عدّل اسم المنصة وبيانات التواصل ونص الصفحة الرئيسية.</p></div>
 
-<div class="surface-card p-3 p-md-4 p-xl-5" style="max-width:900px">
+<div class="surface-card admin-panel reveal p-3 p-md-4 p-xl-5" style="max-width:900px">
     <form method="POST" action="{{ route('admin.settings.update') }}">
         @csrf @method('PUT')
         <div class="row g-3">

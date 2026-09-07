@@ -1,9 +1,9 @@
 @extends('layouts.admin')
 @section('title','المواقع المدعومة')
 @section('admin-content')
-<div class="mb-4"><div class="small text-primary fw-bold mb-1">تكامل المتاجر</div><h1 class="page-heading">المواقع المدعومة</h1><p class="page-subtitle">أضف المواقع والعملات وحدد نوع الـAdapter المستخدم للاستيراد.</p></div>
+<div class="admin-page-header mb-4 reveal is-visible"><div class="small text-primary fw-bold mb-1">تكامل المتاجر</div><h1 class="page-heading">المواقع المدعومة</h1><p class="page-subtitle">أضف المواقع والعملات وحدد نوع الـAdapter المستخدم للاستيراد.</p></div>
 
-<div class="surface-card p-3 p-md-4 mb-4">
+<div class="surface-card admin-panel reveal p-3 p-md-4 mb-4">
     <h2 class="h5 fw-bold mb-3">إضافة موقع جديد</h2>
     <form method="POST" action="{{ route('admin.stores.store') }}" class="row g-3">
         @csrf
@@ -16,5 +16,5 @@
     </form>
 </div>
 
-<div class="surface-card overflow-hidden"><div class="table-responsive"><table class="table table-modern"><thead><tr><th>الموقع</th><th>النطاقات</th><th>العملة</th><th>الحالة</th></tr></thead><tbody>@forelse($stores as $store)<tr><td class="fw-bold">{{ $store->name }}</td><td class="ltr small">{{ implode(', ',$store->domains) }}</td><td>{{ $store->currency }}</td><td><span class="status-badge {{ $store->is_active?'status-success':'status-neutral' }}">{{ $store->is_active?'مفعّل':'موقوف' }}</span></td></tr>@empty<tr><td colspan="4" class="text-center text-secondary py-5">لا توجد مواقع.</td></tr>@endforelse</tbody></table></div></div>
+<div class="surface-card admin-panel overflow-hidden reveal"><div class="table-responsive"><table class="table table-modern"><thead><tr><th>الموقع</th><th>النطاقات</th><th>العملة</th><th>الحالة</th></tr></thead><tbody>@forelse($stores as $store)<tr><td class="fw-bold">{{ $store->name }}</td><td class="ltr small">{{ implode(', ',$store->domains) }}</td><td>{{ $store->currency }}</td><td><span class="status-badge {{ $store->is_active?'status-success':'status-neutral' }}">{{ $store->is_active?'مفعّل':'موقوف' }}</span></td></tr>@empty<tr><td colspan="4" class="text-center text-secondary py-5">لا توجد مواقع.</td></tr>@endforelse</tbody></table></div></div>
 @endsection

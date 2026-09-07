@@ -1,9 +1,9 @@
 @extends('layouts.app')
 @section('title','سلاتي')
 @section('body')
-<section class="page-section">
+<section class="page-section customer-page">
     <div class="container">
-        <div class="d-flex flex-column flex-md-row align-items-md-end justify-content-between gap-3 mb-4">
+        <div class="d-flex flex-column flex-md-row align-items-md-end justify-content-between gap-3 mb-4 reveal is-visible">
             <div><div class="page-kicker">حسابي</div><h1 class="page-heading">سلاتي</h1><p class="page-subtitle">السلات التي حفظتها، مرتبة من الأحدث للأقدم.</p></div>
             <a class="btn btn-primary" href="{{ route('carts.create') }}">+ سلة جديدة</a>
         </div>
@@ -12,7 +12,7 @@
             @forelse($carts as $cart)
                 @php($statusClass = $cart->status === 'cancelled' ? 'status-danger' : ($cart->status === 'confirmed' ? 'status-success' : 'status-primary'))
                 <div class="col-md-6 col-xl-4">
-                    <article class="surface-card cart-card">
+                    <article class="surface-card cart-card reveal">
                         <div class="d-flex justify-content-between align-items-center gap-2 mb-3"><span class="cart-number ltr">{{ $cart->number }}</span><span class="status-badge {{ $statusClass }}">{{ $cart->status }}</span></div>
                         <div class="d-flex align-items-center justify-content-between gap-3 mb-1"><div class="fw-bold">{{ $cart->store?->name ?? $cart->source_host ?? 'موقع خارجي' }}</div><span class="small fw-bold text-primary">{{ $cart->source_currency }}</span></div>
                         <div class="small text-secondary mb-4">{{ $cart->items_count }} منتج • {{ $cart->created_at->format('Y-m-d H:i') }}</div>

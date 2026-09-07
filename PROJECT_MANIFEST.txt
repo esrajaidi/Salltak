@@ -1,40 +1,169 @@
-Cartly Libya — Laravel 13 / Bootstrap 5 RTL / SHEIN Playwright Importer
-
-Core:
-- Laravel customer authentication and saved carts
-- Cart items with image/name/SKU/color/size/variant/price/quantity
-- Exchange rates and LYD totals
-- Admin dashboard/users/carts/stores/rates/settings
-- Bootstrap 5 responsive RTL UI
-
-SHEIN import pipeline:
-1. Raw HTTP HTML parser
-2. Embedded JSON / JSON-LD / escaped React/Next state parser
-3. Playwright Chromium fallback when JavaScript is required
-4. JSON/XHR response capture
-5. DOM product-card extraction
-6. Security challenge detection
-7. Optional headed Chromium mode on Mac with persistent local profile
-
-Browser files:
-- app/Services/CartImport/Browser/SheinBrowserImporter.php
-- scripts/shein-browser-import.mjs
-- scripts/shein-browser-check.mjs
-- package.json (playwright-chromium 1.62.1)
-
-Environment flags:
-- SHEIN_BROWSER_ENABLED
-- SHEIN_BROWSER_NODE
-- SHEIN_BROWSER_HEADLESS
-- SHEIN_BROWSER_TIMEOUT_MS
-- SHEIN_BROWSER_PROCESS_TIMEOUT
-- SHEIN_BROWSER_MANUAL_CHALLENGE_WAIT_MS
-- SHEIN_BROWSER_PROFILE_DIR
-
-Tests during packaging:
-- 18/18 PHP smoke checks PASS
-- 10/10 UI checks PASS
-- 58 PHP files lint PASS
-- Node syntax checks PASS
-
-See README.md and TEST_REPORT.md for install/run details.
+.env
+.env.example
+.gitignore
+PROJECT_MANIFEST.txt
+README.md
+SALLTAK_V10_1_MYSQL_NOTES.md
+SALLTAK_V10_2_NOTES.md
+SALLTAK_V10_3_NOTES.md
+SALLTAK_V10_NOTES.md
+SALLTAK_V9_NOTES.md
+SHEIN_EXTRACTOR_V2.md
+SHEIN_V5_NOTES.md
+SHEIN_V6_NOTES.md
+SHEIN_V7_NOTES.md
+SHEIN_V8_NOTES.md
+TEST_REPORT.md
+TEST_REPORT_UI_V4.md
+TEST_REPORT_V10.md
+TEST_REPORT_V10_1_MYSQL.md
+TEST_REPORT_V10_2.md
+TEST_REPORT_V10_3.md
+UI_V4_NOTES.md
+app/Http/Controllers/Admin/CartController.php
+app/Http/Controllers/Admin/DashboardController.php
+app/Http/Controllers/Admin/DepositRuleController.php
+app/Http/Controllers/Admin/ExchangeRateController.php
+app/Http/Controllers/Admin/OrderController.php
+app/Http/Controllers/Admin/PaymentMethodController.php
+app/Http/Controllers/Admin/SettingController.php
+app/Http/Controllers/Admin/StoreController.php
+app/Http/Controllers/Admin/UserController.php
+app/Http/Controllers/AuthController.php
+app/Http/Controllers/CartController.php
+app/Http/Controllers/Controller.php
+app/Http/Controllers/HomeController.php
+app/Http/Controllers/OrderController.php
+app/Http/Controllers/PaymentController.php
+app/Http/Middleware/AdminMiddleware.php
+app/Http/Middleware/BackofficeMiddleware.php
+app/Models/Cart.php
+app/Models/CartItem.php
+app/Models/DepositRule.php
+app/Models/ExchangeRate.php
+app/Models/Order.php
+app/Models/OrderItem.php
+app/Models/OrderMessage.php
+app/Models/OrderStatusHistory.php
+app/Models/Payment.php
+app/Models/PaymentMethod.php
+app/Models/Store.php
+app/Models/SystemSetting.php
+app/Models/User.php
+app/Providers/AppServiceProvider.php
+app/Services/CartImport/Adapters/GenericProductAdapter.php
+app/Services/CartImport/Adapters/SheinShareAdapter.php
+app/Services/CartImport/Browser/SheinBrowserImporter.php
+app/Services/CartImport/CartImportService.php
+app/Services/CartImport/Contracts/CartSourceAdapter.php
+app/Services/CartImport/ImportResult.php
+app/Services/DepositCalculator.php
+app/Services/LibyaPaymentMethodCatalog.php
+app/Services/MoneyCalculator.php
+app/Services/OrderWorkflowService.php
+app/Services/StoreUrlClassifier.php
+artisan
+bootstrap/app.php
+bootstrap/providers.php
+composer.json
+config/app.php
+config/auth.php
+config/cache.php
+config/database.php
+config/filesystems.php
+config/libya_payment_methods.php
+config/logging.php
+config/mail.php
+config/queue.php
+config/services.php
+config/session.php
+database/factories/UserFactory.php
+database/migrations/0001_01_01_000000_create_users_table.php
+database/migrations/0001_01_01_000001_create_cache_table.php
+database/migrations/0001_01_01_000002_create_jobs_table.php
+database/migrations/2026_08_28_100000_create_stores_table.php
+database/migrations/2026_08_28_100100_create_exchange_rates_table.php
+database/migrations/2026_08_28_100200_create_carts_table.php
+database/migrations/2026_08_28_100300_create_cart_items_table.php
+database/migrations/2026_08_28_100400_create_system_settings_table.php
+database/migrations/2026_09_07_090000_create_orders_table.php
+database/migrations/2026_09_07_090100_create_order_items_table.php
+database/migrations/2026_09_07_090200_create_order_messages_and_history_tables.php
+database/migrations/2026_09_07_090300_create_payment_methods_and_payments_tables.php
+database/migrations/2026_09_07_090400_create_deposit_rules_table.php
+database/mysql_setup.sql
+database/seeders/DatabaseSeeder.php
+database/seeders/LibyaPaymentMethodsSeeder.php
+docs/superpowers/plans/2026-09-06-salltak-v9-ui-redesign.md
+docs/superpowers/plans/2026-09-07-libya-payment-catalog-and-cart-reveal.md
+docs/superpowers/plans/2026-09-07-libya-payments-v10-3.md
+docs/superpowers/plans/2026-09-07-mysql-only.md
+docs/superpowers/plans/2026-09-07-orders-payments-workflow.md
+docs/superpowers/specs/2026-09-06-salltak-v9-ui-redesign-design.md
+docs/superpowers/specs/2026-09-07-libya-payments-v10-3-design.md
+docs/superpowers/specs/2026-09-07-orders-payments-workflow-design.md
+lang/ar/validation.php
+package.json
+phpunit.xml
+public/.htaccess
+public/css/app.css
+public/index.php
+public/js/app-ui.js
+public/vendor/bootstrap/bootstrap.bundle.min.js
+public/vendor/bootstrap/bootstrap.min.css
+resources/views/admin/carts/index.blade.php
+resources/views/admin/carts/show.blade.php
+resources/views/admin/dashboard.blade.php
+resources/views/admin/deposit-rules/index.blade.php
+resources/views/admin/exchange-rates/index.blade.php
+resources/views/admin/orders/index.blade.php
+resources/views/admin/orders/show.blade.php
+resources/views/admin/payment-methods/index.blade.php
+resources/views/admin/settings/edit.blade.php
+resources/views/admin/stores/index.blade.php
+resources/views/admin/users/index.blade.php
+resources/views/auth/login.blade.php
+resources/views/auth/register.blade.php
+resources/views/carts/create.blade.php
+resources/views/carts/index.blade.php
+resources/views/carts/preview.blade.php
+resources/views/carts/show.blade.php
+resources/views/home.blade.php
+resources/views/layouts/admin.blade.php
+resources/views/layouts/app.blade.php
+resources/views/orders/index.blade.php
+resources/views/orders/show.blade.php
+routes/console.php
+routes/web.php
+scripts/deposit_calculator_v10_test.php
+scripts/order_payment_v10_check.php
+scripts/payment_methods_v10_2_check.php
+scripts/payment_methods_v10_3_check.php
+scripts/shein-browser-check.mjs
+scripts/shein-browser-import.mjs
+scripts/shein-goods-attr.mjs
+scripts/smoke_test.php
+scripts/ui_smoke_test.php
+scripts/ui_v4_check.php
+scripts/ui_v9_check.php
+setup.bat
+setup.sh
+tests/Architecture/libya_payment_v103_config_check.php
+tests/Architecture/mysql_only_config_check.php
+tests/Feature/AdminAccessTest.php
+tests/Feature/AuthFlowTest.php
+tests/Feature/BackofficeAccessTest.php
+tests/Feature/CartFlowTest.php
+tests/Feature/OrderPaymentWorkflowTest.php
+tests/Feature/PaymentMethodCatalogTest.php
+tests/Feature/ResponsiveBootstrapUiTest.php
+tests/Feature/SheinImportTest.php
+tests/Node/shein-goods-attr.test.mjs
+tests/Node/shein-usd-price.test.mjs
+tests/TestCase.php
+tests/Unit/MoneyCalculatorTest.php
+tests/Unit/StoreUrlClassifierTest.php
+tests/static/payment-admin-v103.test.mjs
+tests/static/payment-catalog.test.mjs
+tests/static/payment-flow-v103.test.mjs
+tests/static/reveal-guard.test.mjs

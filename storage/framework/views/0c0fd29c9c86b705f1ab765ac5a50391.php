@@ -1,8 +1,8 @@
 <?php $__env->startSection('title','سلاتي'); ?>
 <?php $__env->startSection('body'); ?>
-<section class="page-section">
+<section class="page-section customer-page">
     <div class="container">
-        <div class="d-flex flex-column flex-md-row align-items-md-end justify-content-between gap-3 mb-4">
+        <div class="d-flex flex-column flex-md-row align-items-md-end justify-content-between gap-3 mb-4 reveal is-visible">
             <div><div class="page-kicker">حسابي</div><h1 class="page-heading">سلاتي</h1><p class="page-subtitle">السلات التي حفظتها، مرتبة من الأحدث للأقدم.</p></div>
             <a class="btn btn-primary" href="<?php echo e(route('carts.create')); ?>">+ سلة جديدة</a>
         </div>
@@ -11,7 +11,7 @@
             <?php $__empty_1 = true; $__currentLoopData = $carts; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $cart): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
                 <?php ($statusClass = $cart->status === 'cancelled' ? 'status-danger' : ($cart->status === 'confirmed' ? 'status-success' : 'status-primary')); ?>
                 <div class="col-md-6 col-xl-4">
-                    <article class="surface-card cart-card">
+                    <article class="surface-card cart-card reveal">
                         <div class="d-flex justify-content-between align-items-center gap-2 mb-3"><span class="cart-number ltr"><?php echo e($cart->number); ?></span><span class="status-badge <?php echo e($statusClass); ?>"><?php echo e($cart->status); ?></span></div>
                         <div class="d-flex align-items-center justify-content-between gap-3 mb-1"><div class="fw-bold"><?php echo e($cart->store?->name ?? $cart->source_host ?? 'موقع خارجي'); ?></div><span class="small fw-bold text-primary"><?php echo e($cart->source_currency); ?></span></div>
                         <div class="small text-secondary mb-4"><?php echo e($cart->items_count); ?> منتج • <?php echo e($cart->created_at->format('Y-m-d H:i')); ?></div>

@@ -1,0 +1,19 @@
+@extends('layouts.admin')
+@section('title','قواعد العربون')
+@section('admin-content')
+<div class="admin-page-header reveal is-visible mb-4"><div class="small text-primary fw-bold mb-1">سياسة الدفع الجزئي</div><h1 class="page-heading">قواعد العربون</h1><p class="page-subtitle">حدد العربون تلقائيًا حسب إجمالي الطلب، مع إمكانية التعديل لكل طلب من شاشة المراجعة.</p></div>
+<div class="surface-card admin-panel p-3 p-md-4 mb-4 reveal">
+<h2 class="h5 panel-title mb-3">إضافة قاعدة</h2>
+<form method="POST" action="{{ route('admin.deposit-rules.store') }}" class="row g-2 align-items-end">@csrf
+<div class="col-md-3"><label class="form-label">الاسم</label><input class="form-control" name="name" required placeholder="من 200 إلى 500"></div>
+<div class="col-md-2"><label class="form-label">من</label><input class="form-control" type="number" step="0.01" min="0" name="min_total" required></div>
+<div class="col-md-2"><label class="form-label">إلى</label><input class="form-control" type="number" step="0.01" min="0" name="max_total" placeholder="فارغ = بلا حد"></div>
+<div class="col-md-2"><label class="form-label">النوع</label><select class="form-select" name="type"><option value="percentage">نسبة %</option><option value="fixed">مبلغ ثابت</option></select></div>
+<div class="col-md-2"><label class="form-label">القيمة</label><input class="form-control" type="number" step="0.01" min="0" name="value" required></div>
+<div class="col-md-1"><label class="form-label">ترتيب</label><input class="form-control" type="number" min="0" name="sort_order" value="0"></div>
+<div class="col-12"><button class="btn btn-primary mt-2">إضافة القاعدة</button></div>
+</form></div>
+<div class="surface-card admin-panel overflow-hidden reveal"><div class="table-responsive"><table class="table table-modern align-middle"><thead><tr><th>القاعدة</th><th>النطاق</th><th>العربون</th><th>الحالة</th><th>تعديل</th><th></th></tr></thead><tbody>
+@foreach($rules as $rule)<tr><td class="fw-bold">{{ $rule->name }}</td><td>{{ number_format((float)$rule->min_total,2) }} — {{ $rule->max_total!==null?number_format((float)$rule->max_total,2):'∞' }} د.ل</td><td>{{ $rule->type==='percentage'?number_format((float)$rule->value,2).'%':number_format((float)$rule->value,2).' د.ل' }}</td><td><span class="status-badge {{ $rule->is_active?'status-success':'status-danger' }}">{{ $rule->is_active?'مفعلة':'متوقفة' }}</span></td><td><form method="POST" action="{{ route('admin.deposit-rules.update',$rule) }}" class="d-flex gap-1 flex-wrap">@csrf @method('PUT')<input type="hidden" name="name" value="{{ $rule->name }}"><input class="form-control form-control-sm" style="width:100px" type="number" step="0.01" name="min_total" value="{{ $rule->min_total }}"><input class="form-control form-control-sm" style="width:100px" type="number" step="0.01" name="max_total" value="{{ $rule->max_total }}"><select class="form-select form-select-sm" style="width:105px" name="type"><option value="percentage" @selected($rule->type==='percentage')>%</option><option value="fixed" @selected($rule->type==='fixed')>ثابت</option></select><input class="form-control form-control-sm" style="width:90px" type="number" step="0.01" name="value" value="{{ $rule->value }}"><input type="hidden" name="sort_order" value="{{ $rule->sort_order }}"><button class="btn btn-soft btn-sm">حفظ</button></form></td><td class="text-nowrap"><form class="d-inline" method="POST" action="{{ route('admin.deposit-rules.toggle',$rule) }}">@csrf @method('PATCH')<button class="btn btn-soft btn-sm">{{ $rule->is_active?'إيقاف':'تشغيل' }}</button></form><form class="d-inline" method="POST" action="{{ route('admin.deposit-rules.destroy',$rule) }}" onsubmit="return confirm('حذف القاعدة؟')">@csrf @method('DELETE')<button class="btn btn-danger-soft btn-sm">حذف</button></form></td></tr>@endforeach
+</tbody></table></div></div>
+@endsection

@@ -1,24 +1,15 @@
 @extends('layouts.admin')
 @section('title','لوحة الإدارة')
 @section('admin-content')
-<div class="d-flex flex-column flex-md-row align-items-md-end justify-content-between gap-3 mb-4">
-    <div><div class="small text-primary fw-bold mb-1">نظرة عامة</div><h1 class="page-heading">لوحة الإدارة</h1><p class="page-subtitle">ملخص سريع لحركة المنصة وأحدث السلات.</p></div>
-</div>
-
-@php($cards = [
-    'users' => ['المستخدمون','♙'],
-    'carts' => ['السلات','▣'],
-    'items' => ['المنتجات','□'],
-    'stores' => ['المواقع','◎'],
-])
+<div class="admin-page-header reveal is-visible"><div class="admin-page-kicker">نظرة عامة</div><div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-end gap-3"><div><h1 class="page-heading">مرحبًا، {{ auth()->user()->name }}</h1><p class="page-subtitle">ملخص مباشر للطلبات، الدفعات والسلات.</p></div><a class="btn btn-primary" href="{{ route('admin.orders.index') }}">إدارة الطلبات ←</a></div></div>
 <div class="row g-3 g-xl-4 mb-4">
-    @foreach($cards as $k => [$label,$icon])
-        <div class="col-6 col-xl-3"><div class="surface-card stat-card"><div class="d-flex align-items-start justify-content-between gap-3"><div><div class="stat-label">{{ $label }}</div><div class="stat-value">{{ $stats[$k] }}</div></div><div class="stat-icon">{{ $icon }}</div></div></div></div>
-    @endforeach
+<div class="col-6 col-xl-3"><div class="dashboard-stat"><div class="metric-label">إجمالي الطلبات</div><div class="metric-value mt-2">{{ number_format($stats['orders']) }}</div><div class="metric-foot">كل الطلبات</div></div></div>
+<div class="col-6 col-xl-3"><div class="dashboard-stat sky"><div class="metric-label">تحتاج متابعة</div><div class="metric-value mt-2">{{ number_format($stats['pending_orders']) }}</div><div class="metric-foot">مراجعة/رد/دفع</div></div></div>
+<div class="col-6 col-xl-3"><div class="dashboard-stat gold"><div class="metric-label">دفعات تنتظر التحقق</div><div class="metric-value mt-2">{{ number_format($stats['pending_payments']) }}</div><div class="metric-foot">تحتاج مسؤول</div></div></div>
+<div class="col-6 col-xl-3"><div class="dashboard-stat navy"><div class="metric-label">دفعات معتمدة</div><div class="metric-value mt-2">{{ number_format((float)$stats['paid'],2) }}</div><div class="metric-foot">د.ل</div></div></div>
 </div>
-
-<div class="surface-card overflow-hidden">
-    <div class="p-3 p-md-4 border-bottom d-flex align-items-center justify-content-between gap-2"><div><h2 class="h5 fw-bold mb-1">آخر السلات</h2><div class="small text-secondary">آخر العمليات المحفوظة في النظام</div></div><a class="btn btn-outline-primary btn-sm" href="{{ route('admin.carts.index') }}">عرض الكل</a></div>
-    <div class="table-responsive"><table class="table table-modern"><thead><tr><th>الرقم</th><th>العميل</th><th>الموقع</th><th>القيمة</th><th></th></tr></thead><tbody>@forelse($latestCarts as $cart)<tr><td class="fw-semibold">{{ $cart->number }}</td><td>{{ $cart->user->name }}</td><td>{{ $cart->store?->name ?? '-' }}</td><td class="fw-bold">{{ number_format((float)$cart->total_lyd,2) }} د.ل</td><td class="text-nowrap"><a class="btn btn-soft btn-sm" href="{{ route('admin.carts.show',$cart) }}">عرض</a></td></tr>@empty<tr><td colspan="5" class="text-center py-5 text-secondary">لا توجد سلات بعد.</td></tr>@endforelse</tbody></table></div>
+<div class="row g-4">
+<div class="col-xl-8"><section class="admin-panel overflow-hidden reveal"><div class="p-3 p-md-4 border-bottom d-flex align-items-center justify-content-between"><div><h2 class="h5 panel-title mb-1">أحدث الطلبات</h2><div class="small text-secondary">آخر طلبات العملاء</div></div><a class="btn btn-soft btn-sm" href="{{ route('admin.orders.index') }}">عرض الكل</a></div><div class="table-responsive"><table class="table table-modern"><thead><tr><th>الطلب</th><th>العميل</th><th>الحالة</th><th>المتبقي</th><th>المسؤول</th><th></th></tr></thead><tbody>@forelse($latestOrders as $order)<tr><td class="fw-bold ltr">{{ $order->number }}</td><td>{{ $order->user->name }}</td><td><span class="status-badge status-primary">{{ $order->status }}</span></td><td class="fw-bold">{{ number_format((float)$order->remaining_amount,2) }} د.ل</td><td>{{ $order->assignee?->name ?? '—' }}</td><td><a class="btn btn-soft btn-sm" href="{{ route('admin.orders.show',$order) }}">مراجعة</a></td></tr>@empty<tr><td colspan="6" class="text-center py-5 text-secondary">لا توجد طلبات بعد.</td></tr>@endforelse</tbody></table></div></section></div>
+<div class="col-xl-4"><section class="admin-panel p-3 p-md-4 h-100 reveal"><h2 class="h5 panel-title mb-1">إجراءات سريعة</h2><p class="small text-secondary mb-3">اختصارات للعمل اليومي.</p><div class="d-grid gap-2"><a class="quick-action" href="{{ route('admin.orders.index') }}"><span class="quick-action-icon">✓</span><span><strong class="d-block">مراجعة الطلبات</strong><small class="text-secondary">اعتماد، عربون، شحن</small></span></a>@if(auth()->user()->isAdmin())<a class="quick-action" href="{{ route('admin.payment-methods.index') }}"><span class="quick-action-icon">د</span><span><strong class="d-block">طرق الدفع</strong><small class="text-secondary">تشغيل وإعداد المزودين</small></span></a><a class="quick-action" href="{{ route('admin.deposit-rules.index') }}"><span class="quick-action-icon">%</span><span><strong class="d-block">قواعد العربون</strong><small class="text-secondary">شرائح تلقائية حسب الإجمالي</small></span></a>@endif<a class="quick-action" href="{{ route('admin.carts.index') }}"><span class="quick-action-icon">▣</span><span><strong class="d-block">السلات</strong><small class="text-secondary">مصدر الطلبات</small></span></a></div></section></div>
 </div>
 @endsection

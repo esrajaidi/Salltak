@@ -1,15 +1,15 @@
 <?php $__env->startSection('title','سلة جديدة'); ?>
 <?php $__env->startSection('body'); ?>
-<section class="page-section">
+<section class="page-section customer-page">
     <div class="container">
         <div class="row justify-content-center">
             <div class="col-xl-9 col-xxl-8">
-                <div class="d-flex flex-column flex-md-row align-items-md-end justify-content-between gap-3 mb-4">
+                <div class="d-flex flex-column flex-md-row align-items-md-end justify-content-between gap-3 mb-4 reveal is-visible">
                     <div><div class="page-kicker">إضافة سلة</div><h1 class="page-heading">ألصق رابط سلتك</h1><p class="page-subtitle">استخدم رابط مشاركة السلة من SHEIN، وسنحاول جلب العناصر الحقيقية وعرض سعرها بالدينار الليبي.</p></div>
                     <a class="btn btn-ghost" href="<?php echo e(route('carts.index')); ?>">سلاتي</a>
                 </div>
 
-                <div class="surface-card-elevated p-3 p-md-4 p-lg-5">
+                <div class="surface-card-elevated reveal p-3 p-md-4 p-lg-5">
                     <form method="POST" action="<?php echo e(route('carts.analyze')); ?>" id="analyzeForm">
                         <?php echo csrf_field(); ?>
                         <label class="form-label" for="source_url">رابط مشاركة السلة</label>

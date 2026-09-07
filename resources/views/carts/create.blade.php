@@ -1,16 +1,16 @@
 @extends('layouts.app')
 @section('title','سلة جديدة')
 @section('body')
-<section class="page-section">
+<section class="page-section customer-page">
     <div class="container">
         <div class="row justify-content-center">
             <div class="col-xl-9 col-xxl-8">
-                <div class="d-flex flex-column flex-md-row align-items-md-end justify-content-between gap-3 mb-4">
+                <div class="d-flex flex-column flex-md-row align-items-md-end justify-content-between gap-3 mb-4 reveal is-visible">
                     <div><div class="page-kicker">إضافة سلة</div><h1 class="page-heading">ألصق رابط سلتك</h1><p class="page-subtitle">استخدم رابط مشاركة السلة من SHEIN، وسنحاول جلب العناصر الحقيقية وعرض سعرها بالدينار الليبي.</p></div>
                     <a class="btn btn-ghost" href="{{ route('carts.index') }}">سلاتي</a>
                 </div>
 
-                <div class="surface-card-elevated p-3 p-md-4 p-lg-5">
+                <div class="surface-card-elevated reveal p-3 p-md-4 p-lg-5">
                     <form method="POST" action="{{ route('carts.analyze') }}" id="analyzeForm">
                         @csrf
                         <label class="form-label" for="source_url">رابط مشاركة السلة</label>

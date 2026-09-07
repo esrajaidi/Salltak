@@ -1,0 +1,10 @@
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+const view = fs.readFileSync('resources/views/admin/payment-methods/index.blade.php','utf8');
+const css = fs.readFileSync('public/css/app.css','utf8');
+assert.match(view, /payment-method-grid/, 'payment admin must use compact card grid');
+assert.match(view, /data-payment-filter/, 'payment admin must provide compact filters');
+assert.match(view, /modal fade/, 'full provider config must open in Bootstrap modal');
+assert.match(view, /activationIssues\(\)/, 'cards must show readiness');
+assert.match(css, /\.payment-method-grid/, 'compact payment grid CSS must exist');
+console.log('payment-admin-v103: PASS');

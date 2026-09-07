@@ -1,0 +1,15 @@
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+const model = fs.readFileSync('app/Models/PaymentMethod.php','utf8');
+const admin = fs.readFileSync('app/Http/Controllers/Admin/PaymentMethodController.php','utf8');
+const order = fs.readFileSync('app/Http/Controllers/OrderController.php','utf8');
+const payment = fs.readFileSync('app/Http/Controllers/PaymentController.php','utf8');
+const customer = fs.readFileSync('resources/views/orders/show.blade.php','utf8');
+assert.match(model, /function activationIssues\(/, 'PaymentMethod needs activationIssues');
+assert.match(model, /function canOfferForOrder\(/, 'PaymentMethod needs order-aware availability');
+assert.match(admin, /activationIssues\(\)/, 'admin toggle must block incomplete activation');
+assert.match(order, /canOfferForOrder\(/, 'customer list must use order-aware availability');
+assert.match(payment, /canOfferForOrder\(/, 'server-side payment submission must use order-aware availability');
+assert.match(customer, /externalPaymentUrl\(/, 'customer view must support contracted external checkout links');
+assert.match(customer, /customerDetails\(/, 'customer view must render only model-approved public details');
+console.log('payment-flow-v103: PASS');

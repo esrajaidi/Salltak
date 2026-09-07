@@ -2,9 +2,9 @@
 @section('title','مراجعة السلة')
 
 @section('body')
-<section class="page-section">
+<section class="page-section customer-page">
     <div class="container">
-        <div class="d-flex flex-column flex-md-row align-items-md-end justify-content-between gap-3 mb-4">
+        <div class="d-flex flex-column flex-md-row align-items-md-end justify-content-between gap-3 mb-4 reveal is-visible">
             <div>
                 <div class="page-kicker">قبل الحفظ</div>
                 <h1 class="page-heading">راجع سلتك</h1>
@@ -13,7 +13,7 @@
             <a class="btn btn-ghost" href="{{ route('carts.create') }}">تغيير الرابط</a>
         </div>
 
-        <div class="surface-card-elevated p-3 p-md-4">
+        <div class="surface-card-elevated reveal is-visible p-3 p-md-4">
             <div class="alert {{ $result->status === 'success' ? 'alert-success' : 'alert-warning' }} border-0 import-alert mb-3">
                 <div class="import-alert-icon">{{ $result->status === 'success' ? '✓' : '!' }}</div>
                 <div class="flex-grow-1">
