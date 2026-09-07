@@ -80,7 +80,7 @@ HTML;
             ->assertSee('حقيبة يد')
             ->assertSee('13.29')
             ->assertSee('6.66')
-            ->assertSee('USD')
+            ->assertSee('دولار')
             ->assertSee('Black')
             ->assertSee('M');
     }
@@ -93,7 +93,7 @@ HTML;
 
         $this->actingAs($user)->post('/my-carts/analyze', ['source_url' => self::SHARE_URL])
             ->assertOk()
-            ->assertSee('USD')
+            ->assertSee('دولار')
             ->assertSee('تشغيل JavaScript');
     }
 
@@ -106,14 +106,14 @@ HTML;
         $this->actingAs($user)->post('/my-carts/analyze', ['source_url' => self::SHARE_URL])
             ->assertOk()
             ->assertSee('SHEIN منع الطلب المباشر')
-            ->assertSee('USD');
+            ->assertSee('دولار');
     }
 
     public function test_share_landing_extracts_escaped_nested_app_state(): void
     {
         $user = $this->seedShein();
         $html = <<<'HTML'
-<html><script>self.__next_f.push([1,"{\"cartShareData\":{\"goods_list\":[{\"quantity\":3,\"goods_info\":{\"goods_id\":\"30003\",\"goods_name\":\"حذاء نسائي\",\"goods_img\":{\"origin_image\":\"//img.ltwebstatic.com/c.jpg\"},\"sale_price\":{\"amount\":\"19.50\",\"currency\":\"AED\"},\"sku_sale_attr\":[{\"attr_name\":\"Color\",\"attr_value\":\"White\"},{\"attr_name\":\"Size\",\"attr_value\":\"39\"}]}}]}}"]);</script></html>
+<html><script>self.__next_f.push([1,"{\"cartShareData\":{\"goods_list\":[{\"quantity\":3,\"goods_info\":{\"goods_id\":\"30003\",\"goods_name\":\"حذاء نسائي\",\"goods_img\":{\"origin_image\":\"//img.ltwebstatic.com/c.jpg\"},\"sale_price\":{\"amount\":\"19.50\",\"usdAmount\":\"5.19\",\"currency\":\"AED\"},\"sku_sale_attr\":[{\"attr_name\":\"Color\",\"attr_value\":\"White\"},{\"attr_name\":\"Size\",\"attr_value\":\"39\"}]}}]}}"]);</script></html>
 HTML;
         Http::fake(['*' => Http::response($html, 200)]);
 
@@ -156,7 +156,7 @@ HTML;
             ->assertSee('M')
             ->assertSee('14.85')
             ->assertSee('99112233')
-            ->assertSee('USD');
+            ->assertSee('دولار');
 
         Process::assertRan([(string) config('services.cart_import.shein_browser.node_binary', 'node'), base_path('scripts/shein-browser-import.mjs')]);
     }

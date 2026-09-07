@@ -6,6 +6,7 @@ use App\Models\Order;
 use App\Models\PaymentMethod;
 use App\Services\AuditLogger;
 use App\Services\NotificationService;
+use App\Services\OperationalEmailNotifier;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -14,6 +15,7 @@ class PaymentController extends Controller
     public function __construct(
         private readonly NotificationService $notifications,
         private readonly AuditLogger $audit,
+        private readonly OperationalEmailNotifier $emailNotifier,
     ) {}
 
     public function store(Request $request, Order $order)
@@ -74,6 +76,7 @@ class PaymentController extends Controller
 
         $this->audit->log('payment.submitted', 'إرسال دفعة للتحقق', $request->user(), $payment, 'قيمة الدفعة '.number_format($amount,2).' د.ل عبر '.$method->name, ['payment_method_id'=>$method->id], $order);
         $this->notifications->notifyBackoffice($order, 'payment.submitted', 'دفعة جديدة تحتاج تحقق '.$order->number, number_format($amount,2).' د.ل عبر '.$method->name, 'payment', ['payment_id'=>$payment->id]);
+        $this->emailNotifier->send('payment', 'دفعة جديدة تحتاج تحقق '.$order->number, 'سجل العميل دفعة بقيمة '.number_format($amount,2).' د.ل عبر '.$method->name.'.', route('admin.orders.show', $order));
 
         return back()->with('success', 'تم تسجيل الدفعة. سيتم اعتمادها بعد التحقق من المسؤول.');
     }

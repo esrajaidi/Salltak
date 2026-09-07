@@ -1,0 +1,10 @@
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+const controller = fs.readFileSync('app/Http/Controllers/CartController.php','utf8');
+const preview = fs.readFileSync('resources/views/carts/preview.blade.php','utf8');
+assert.match(controller, /cart_import_preview/);
+assert.match(controller, /preview_token/);
+assert.match(preview, /name="preview_token"/);
+assert.doesNotMatch(preview, /name="items\[[^\]]+\]\[unit_price_original\]"/);
+assert.match(preview, /سعر ثابت من المتجر/);
+console.log('cart-price-lock-v106: PASS');

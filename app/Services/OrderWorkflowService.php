@@ -20,24 +20,22 @@ class OrderWorkflowService
         string $to,
         ?User $actor = null,
         ?string $note = null,
-        string $visibility = 'customer',
+        string $visibility = 'auto',
         string $eventType = 'status_changed',
         array $metadata = [],
     ): void {
         if (! in_array($to, Order::STATUSES, true)) {
             throw ValidationException::withMessages(['status' => 'حالة الطلب غير صالحة.']);
         }
+        $visibility = $this->resolveVisibility($to, $visibility, $eventType);
         if (! in_array($visibility, ['customer', 'internal'], true)) {
             throw ValidationException::withMessages(['visibility' => 'نوع ظهور الملاحظة غير صالح.']);
         }
         if ($to === 'delivered' && (float) $order->remaining_amount > 0.009) {
             throw ValidationException::withMessages(['status' => 'لا يمكن تسليم الطلب قبل سداد المبلغ المتبقي بالكامل.']);
         }
-        if (in_array($to, ['rejected', 'cancelled', 'needs_customer_action'], true) && trim((string) $note) === '') {
+        if ($this->requiresReason($to) && trim((string) $note) === '') {
             throw ValidationException::withMessages(['reason' => 'اكتب سبب أو ملاحظة واضحة لهذه الحالة.']);
-        }
-        if (in_array($to, ['rejected', 'cancelled', 'needs_customer_action'], true)) {
-            $visibility = 'customer';
         }
 
         $from = $order->status;
@@ -74,6 +72,26 @@ class OrderWorkflowService
             $customerBody = $visibility === 'customer' && $note ? $note : 'الحالة الحالية: '.$label;
             $this->notifications->notifyCustomer($order, 'order.status_changed', 'تحديث حالة الطلب '.$order->number, $customerBody, 'status', ['status' => $to]);
         }
+    }
+
+    public function requiresReason(string $status): bool
+    {
+        return in_array($status, ['rejected', 'cancelled', 'needs_customer_action'], true);
+    }
+
+    public function resolveVisibility(string $status, string $requested = 'auto', string $eventType = 'status_changed'): string
+    {
+        if ($this->requiresReason($status)) {
+            return 'customer';
+        }
+
+        if ($requested !== 'auto') {
+            return in_array($requested, ['customer', 'internal'], true) ? $requested : 'customer';
+        }
+
+        // تغيّر حالة الطلب هو جزء من رحلة العميل، لذلك يظهر له تلقائيًا.
+        // الملاحظات التشغيلية المستقلة تبقى داخلية ما لم يحدد المسؤول غير ذلك.
+        return $eventType === 'status_changed' ? 'customer' : 'internal';
     }
 
     public function addNote(Order $order, User $actor, string $note, string $visibility = 'internal', array $metadata = []): void

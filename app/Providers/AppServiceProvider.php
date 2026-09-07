@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Models\SiteSection;
+
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\Facades\Schema;
@@ -28,7 +30,18 @@ class AppServiceProvider extends ServiceProvider
                 $unreadNotificationCount = $user->appNotifications()->whereNull('read_at')->count();
             }
 
-            $view->with(compact('navNotifications', 'unreadNotificationCount'));
+            $siteFooter = [];
+            if (Schema::hasTable('site_sections')) {
+                if (request()->routeIs('admin.site-content.preview')) {
+                    $footerSection = SiteSection::query()->where('slug', 'footer')->first();
+                    if ($footerSection?->draft_is_visible) $siteFooter = $footerSection->draft_content ?? $footerSection->content ?? [];
+                } else {
+                    $footerSection = SiteSection::query()->where('slug', 'footer')->where('is_visible', true)->first();
+                    $siteFooter = $footerSection?->content ?? [];
+                }
+            }
+
+            $view->with(compact('navNotifications', 'unreadNotificationCount', 'siteFooter'));
         });
     }
 }

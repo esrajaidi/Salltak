@@ -35,7 +35,7 @@
                 </article>
             </div>
         @empty
-            <div class="col-12"><div class="surface-card empty-state"><div class="empty-state-icon">ط</div><h2 class="h4 fw-bold">ما عندكش طلبات بعد</h2><p class="text-secondary">احفظ سلة أولًا، وبعدها اضغط «اطلب هذه السلة» لإرسالها للمراجعة.</p><a class="btn btn-primary" href="{{ route('carts.index') }}">الذهاب إلى سلاتي</a></div></div>
+            <div class="col-12"><div class="surface-card empty-state"><div class="empty-state-icon"><x-icon name="orders" size="26" /></div><h2 class="h4 fw-bold">ما عندكش طلبات بعد</h2><p class="text-secondary">احفظ سلة أولًا، وبعدها اضغط «اطلب هذه السلة» لإرسالها للمراجعة.</p><a class="btn btn-primary" href="{{ route('carts.index') }}">الذهاب إلى سلاتي</a></div></div>
         @endforelse
     </div>
     <div class="mt-4">{{ $orders->links() }}</div>

@@ -15,6 +15,8 @@ class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
+        $this->call(SiteContentSeeder::class);
+
         $admin = User::updateOrCreate(
             ['email' => env('DEMO_ADMIN_EMAIL', 'admin@cartly.test')],
             ['name' => 'مدير المنصة', 'phone' => '0910000000', 'password' => Hash::make(env('DEMO_ADMIN_PASSWORD', 'Admin@123456')), 'role' => 'admin', 'is_active' => true]
@@ -51,9 +53,16 @@ class DatabaseSeeder extends Seeder
             'platform_name' => 'سلتك',
             'home_intro' => 'احفظ سلة مشترياتك، أرسلها للمراجعة، وادفع عربونًا أو دفعات جزئية حتى التسليم.',
             'contact_email' => 'support@cartly.test',
+            'notification_emails' => env('DEMO_ADMIN_EMAIL', 'admin@cartly.test'),
+            'notify_email_new_order' => '1',
+            'notify_email_new_message' => '1',
+            'notify_email_payment' => '1',
+            'notify_email_customer_updates' => '1',
         ] as $key=>$value) SystemSetting::updateOrCreate(['key'=>$key], ['value'=>$value]);
 
         $this->call(LibyaPaymentMethodsSeeder::class);
+
+        $this->call(DemoPaymentMethodsSeeder::class);
 
 
         foreach ([

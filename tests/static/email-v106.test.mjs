@@ -1,0 +1,13 @@
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+const settings = fs.readFileSync('app/Http/Controllers/Admin/SettingController.php','utf8');
+const service = fs.existsSync('app/Services/OperationalEmailNotifier.php') ? fs.readFileSync('app/Services/OperationalEmailNotifier.php','utf8') : '';
+const orderController = fs.readFileSync('app/Http/Controllers/OrderController.php','utf8');
+const paymentController = fs.readFileSync('app/Http/Controllers/PaymentController.php','utf8');
+assert.match(settings, /notification_emails/);
+assert.match(settings, /notify_email_new_order/);
+assert.match(service, /class OperationalEmailNotifier/);
+assert.match(service, /Mail::/);
+assert.match(orderController, /OperationalEmailNotifier/);
+assert.match(paymentController, /OperationalEmailNotifier/);
+console.log('email-v106: PASS');

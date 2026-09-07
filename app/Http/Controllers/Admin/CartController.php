@@ -11,7 +11,7 @@ class CartController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Cart::with(['user', 'store'])->withCount('items')->latest();
+        $query = Cart::with(['user', 'store', 'order'])->withCount('items')->latest();
         if ($request->filled('status')) $query->where('status', $request->string('status')->toString());
         if ($request->filled('q')) {
             $q = $request->string('q')->toString();
@@ -25,13 +25,17 @@ class CartController extends Controller
 
     public function show(Cart $cart)
     {
-        $cart->load(['user', 'store', 'items']);
-        return view('admin.carts.show', compact('cart'));
+        $cart->load(['user', 'store', 'order'])->loadCount('items');
+        $itemsPage = $cart->items()->orderBy('id')->paginate(12, ['*'], 'items_page')->withQueryString();
+        return view('admin.carts.show', compact('cart', 'itemsPage'));
     }
 
     public function updateStatus(Request $request, Cart $cart)
     {
-        $data = $request->validate(['status' => ['required', Rule::in(['new', 'saved', 'confirmed', 'cancelled'])]]);
+        if ($cart->order()->exists()) {
+            return back()->withErrors(['status' => 'حالة هذه السلة مرتبطة بطلب، لذلك تُدار مراحلها من صفحة الطلب ولا يمكن إعادتها إلى حالة محفوظة.']);
+        }
+        $data = $request->validate(['status' => ['required', Rule::in(['new', 'saved', 'submitted', 'confirmed', 'cancelled'])]]);
         $cart->update($data);
         return back()->with('success', 'تم تحديث حالة السلة.');
     }

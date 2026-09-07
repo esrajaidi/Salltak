@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use Database\Seeders\DatabaseSeeder;
 use App\Models\PaymentMethod;
 use App\Services\LibyaPaymentMethodCatalog;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -15,14 +16,16 @@ class PaymentMethodCatalogTest extends TestCase
     {
         $result = app(LibyaPaymentMethodCatalog::class)->sync();
 
-        $this->assertSame(22, $result['total']);
-        $this->assertSame(22, PaymentMethod::count());
+        $this->assertSame(23, $result['total']);
+        $this->assertSame(23, PaymentMethod::count());
         $this->assertDatabaseHas('payment_methods', ['code' => 'lypay', 'is_active' => false]);
         $this->assertDatabaseHas('payment_methods', ['code' => 'onepay', 'is_active' => false]);
         $this->assertDatabaseHas('payment_methods', ['code' => 'visa', 'is_active' => false]);
         $this->assertDatabaseHas('payment_methods', ['code' => 'mastercard', 'is_active' => false]);
         $this->assertDatabaseHas('payment_methods', ['code' => 'runpay_wallet', 'is_active' => false]);
         $this->assertDatabaseHas('payment_methods', ['code' => 'moamalat_cards', 'is_active' => false]);
+        $this->assertDatabaseHas('payment_methods', ['code' => 'cash', 'is_active' => false]);
+        $this->assertDatabaseHas('payment_methods', ['code' => 'cash_on_delivery', 'is_active' => false]);
     }
 
     public function test_catalog_refresh_preserves_admin_activation_and_merchant_configuration(): void
@@ -73,4 +76,18 @@ class PaymentMethodCatalogTest extends TestCase
 
         $this->assertSame([], $method->fresh()->activationIssues());
     }
+    public function test_demo_database_seeder_enables_lypay_and_cash_with_obvious_fake_lypay_data(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $lypay = PaymentMethod::where('code','lypay')->firstOrFail();
+        $cash = PaymentMethod::where('code','cash')->firstOrFail();
+
+        $this->assertTrue($lypay->is_active);
+        $this->assertTrue($cash->is_active);
+        $this->assertStringStartsWith('LY00DEMO', (string)($lypay->config['iban'] ?? ''));
+        $this->assertSame('1', (string)($lypay->config['test_mode'] ?? '0'));
+        $this->assertSame([], $lypay->activationIssues());
+    }
+
 }

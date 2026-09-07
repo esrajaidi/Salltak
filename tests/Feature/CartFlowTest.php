@@ -18,12 +18,29 @@ class CartFlowTest extends TestCase
         $store = Store::create(['name'=>'SHEIN','slug'=>'shein','domains'=>['shein.com','onelink.shein.com'],'currency'=>'USD','adapter'=>'shein','is_active'=>true]);
         ExchangeRate::create(['currency'=>'USD','rate_to_lyd'=>7,'is_active'=>true]);
 
-        $response = $this->actingAs($user)->post('/my-carts', [
-            'source_url'=>'https://onelink.shein.com/50/example',
-            'store_id'=>$store->id,'source_currency'=>'USD','import_status'=>'success','import_message'=>'ok',
+        $token = str_repeat('a', 48);
+        $session = [
+            'cart_import_preview.'.$token => [
+                'user_id'=>$user->id,
+                'source_url'=>'https://onelink.shein.com/50/example',
+                'store_id'=>$store->id,
+                'source_currency'=>'USD',
+                'exchange_rate'=>7,
+                'import_status'=>'success',
+                'import_message'=>'ok',
+                'created_at'=>now()->timestamp,
+                'items'=>[
+                    ['_key'=>'item-a','name'=>'Product A','quantity'=>1,'unit_price_original'=>10],
+                    ['_key'=>'item-b','name'=>'Product B','quantity'=>1,'unit_price_original'=>5],
+                ],
+            ],
+        ];
+
+        $response = $this->actingAs($user)->withSession($session)->post('/my-carts', [
+            'preview_token'=>$token,
             'items'=>[
-                ['name'=>'Product A','quantity'=>2,'unit_price_original'=>10],
-                ['name'=>'Product B','quantity'=>1,'unit_price_original'=>5],
+                ['key'=>'item-a','quantity'=>2],
+                ['key'=>'item-b','quantity'=>1],
             ],
         ]);
 
@@ -41,15 +58,26 @@ class CartFlowTest extends TestCase
         ExchangeRate::create(['currency'=>'USD','rate_to_lyd'=>7,'is_active'=>true]);
         $longName = str_repeat('منتج شي إن طويل للاختبار ', 18);
 
-        $response = $this->actingAs($user)->post('/my-carts', [
-            'source_url'=>'https://m.shein.com/ar/cart/share/landing?group_id=123',
-            'store_id'=>$store->id,
-            'source_currency'=>'USD',
-            'import_status'=>'success',
-            'import_message'=>'ok',
-            'items'=>[
-                ['external_id'=>'415154902','name'=>$longName,'quantity'=>1,'unit_price_original'=>3.97],
+        $token = str_repeat('b', 48);
+        $session = [
+            'cart_import_preview.'.$token => [
+                'user_id'=>$user->id,
+                'source_url'=>'https://m.shein.com/ar/cart/share/landing?group_id=123',
+                'store_id'=>$store->id,
+                'source_currency'=>'USD',
+                'exchange_rate'=>7,
+                'import_status'=>'success',
+                'import_message'=>'ok',
+                'created_at'=>now()->timestamp,
+                'items'=>[
+                    ['_key'=>'long-item','external_id'=>'415154902','name'=>$longName,'quantity'=>1,'unit_price_original'=>3.97],
+                ],
             ],
+        ];
+
+        $response = $this->actingAs($user)->withSession($session)->post('/my-carts', [
+            'preview_token'=>$token,
+            'items'=>[['key'=>'long-item','quantity'=>1]],
         ]);
 
         $response->assertSessionHasNoErrors();
@@ -58,6 +86,31 @@ class CartFlowTest extends TestCase
 
         $this->actingAs($user)->post(route('orders.from-cart', $cart))->assertRedirect();
         $this->assertDatabaseHas('order_items', ['name'=>$longName]);
+    }
+
+    public function test_customer_cannot_tamper_with_imported_price(): void
+    {
+        $user = User::factory()->create();
+        $store = Store::create(['name'=>'SHEIN','slug'=>'shein','domains'=>['shein.com'],'currency'=>'USD','adapter'=>'shein','is_active'=>true]);
+        ExchangeRate::create(['currency'=>'USD','rate_to_lyd'=>7,'is_active'=>true]);
+        $token = str_repeat('c', 48);
+
+        $response = $this->actingAs($user)->withSession([
+            'cart_import_preview.'.$token => [
+                'user_id'=>$user->id,'source_url'=>'https://m.shein.com/ar/cart/share/landing?group_id=456',
+                'store_id'=>$store->id,'source_currency'=>'USD','exchange_rate'=>7,'import_status'=>'success','import_message'=>'ok',
+                'created_at'=>now()->timestamp,
+                'items'=>[['_key'=>'locked-price','name'=>'Locked Product','quantity'=>1,'unit_price_original'=>19.95]],
+            ],
+        ])->post('/my-carts', [
+            'preview_token'=>$token,
+            'items'=>[['key'=>'locked-price','quantity'=>2,'unit_price_original'=>0.01]],
+        ]);
+
+        $response->assertSessionHasNoErrors();
+        $item = $user->carts()->firstOrFail()->items()->firstOrFail();
+        $this->assertSame('19.95', $item->unit_price_original);
+        $this->assertSame('39.90', $item->line_total_original);
     }
 
     public function test_user_cannot_open_another_users_cart(): void

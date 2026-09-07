@@ -15,8 +15,16 @@ class PaymentMethodController extends Controller
 
     public function index()
     {
+        $ordered = PaymentMethod::query()->orderBy('sort_order')->orderBy('name');
+        $allMethods = (clone $ordered)->get();
+        $methodsPage = $ordered->paginate(12)->withQueryString();
+
         return view('admin.payment-methods.index', [
-            'methods' => PaymentMethod::query()->orderBy('sort_order')->orderBy('name')->get(),
+            'methods' => $methodsPage->getCollection(),
+            'methodsPage' => $methodsPage,
+            'methodsTotal' => $allMethods->count(),
+            'activeTotal' => $allMethods->where('is_active', true)->count(),
+            'readyTotal' => $allMethods->filter(fn (PaymentMethod $method) => $method->activationIssues() === [])->count(),
         ]);
     }
 
@@ -95,6 +103,8 @@ class PaymentMethodController extends Controller
             'config.currency' => ['nullable','string','max:10'],
             'config.availability' => ['nullable', Rule::in(['online','delivery_only','all'])],
             'config.test_mode' => ['nullable', Rule::in(['0','1',0,1])],
+            'config.allow_deposit' => ['nullable', Rule::in(['0','1',0,1])],
+            'config.allow_balance' => ['nullable', Rule::in(['0','1',0,1])],
             'config.provider_name' => ['nullable','string','max:190'],
             'config.official_activity' => ['nullable','string','max:500'],
             'config.documentation_status' => ['nullable','string','max:100'],
@@ -136,7 +146,7 @@ class PaymentMethodController extends Controller
     {
         $out = $method?->config ?? [];
         $normalKeys = [
-            'provider_name','official_activity','documentation_status','official_source','integration_mode','proof_mode','currency','availability','test_mode',
+            'provider_name','official_activity','documentation_status','official_source','integration_mode','proof_mode','currency','availability','test_mode','allow_deposit','allow_balance',
             'bank_name','branch_name','account_name','iban','account_number','beneficiary_account','wallet_number','merchant_name','phone','qr_value','qr_image_url',
             'merchant_account_number','mcc','city','internal_reference_prefix','merchant_id','terminal_id','acquirer_name','merchant_contract_reference','location',
             'api_base_url','checkout_url','callback_url','return_url','cancel_url',
@@ -154,6 +164,9 @@ class PaymentMethodController extends Controller
                 $out[$key] = $request->input('config.'.$key);
             }
         }
+
+        $out['allow_deposit'] = $request->boolean('config.allow_deposit') ? '1' : '0';
+        $out['allow_balance'] = $request->boolean('config.allow_balance') ? '1' : '0';
 
         return $out;
     }

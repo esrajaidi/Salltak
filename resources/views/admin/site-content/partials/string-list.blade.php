@@ -1,0 +1,1 @@
+<div class="cms-subsection"><h3>{{ $label }}</h3><div class="row g-2">@for($i=0;$i<$max;$i++)<div class="col-md-6"><input class="form-control" name="{{ $field }}[]" value="{{ old($field.'.'.$i,$values[$i]??'') }}" placeholder="{{ $label }} {{ $i+1 }}"></div>@endfor</div></div>

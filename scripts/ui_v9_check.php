@@ -19,6 +19,8 @@ $app = $read($files['app']);
 $admin = $read($files['admin']);
 $home = $read($files['home']);
 $js = $read($files['js']);
+$marketingPartials = '';
+foreach (glob($root.'/resources/views/site/sections/*.blade.php') ?: [] as $partial) { $marketingPartials .= $read($partial)."\n"; }
 
 $adminPages = [
     $root.'/resources/views/admin/carts/index.blade.php',
@@ -44,10 +46,10 @@ $checks = [
     'reveal class' => str_contains($css, '.reveal'),
     'reduced motion' => str_contains($css, 'prefers-reduced-motion'),
     'responsive admin sidebar' => str_contains($css, '.admin-sidebar') && str_contains($css, '@media'),
-    'landing hero' => str_contains($home, 'landing-hero'),
-    'how it works section' => str_contains($home, 'how-it-works'),
-    'platform preview section' => str_contains($home, 'platform-preview'),
-    'landing cta section' => str_contains($home, 'landing-cta'),
+    'landing hero' => str_contains($home, 'site.sections.') && str_contains($marketingPartials, 'marketing-hero'),
+    'how it works section' => str_contains($marketingPartials, 'how-it-works'),
+    'platform preview section' => str_contains($marketingPartials, 'showcase-order-ui') || str_contains($marketingPartials, 'showcase-uploaded-image'),
+    'landing cta section' => str_contains($marketingPartials, 'marketing-cta'),
     'admin topbar' => str_contains($admin, 'admin-topbar'),
     'admin sidebar markup' => str_contains($admin, 'admin-sidebar'),
     'app ui script loaded' => str_contains($app, 'js/app-ui.js'),

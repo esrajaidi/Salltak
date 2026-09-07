@@ -67,7 +67,52 @@
         });
     };
 
-    const boot = () => { reveal(); flash(); confirmations(); };
+
+    const cartImportLoading = () => {
+        const forms = document.querySelectorAll('form[data-cart-import]');
+        const overlay = document.getElementById('cart-import-overlay');
+        if (!forms.length || !overlay) return;
+        const title = overlay.querySelector('[data-import-title]');
+        const message = overlay.querySelector('[data-import-message]');
+        const messages = [
+            ['استنا شوية... جاري جلب السلة','لا تقفلي الصفحة، بنجيب المنتجات الحقيقية ونجهزها للعرض.'],
+            ['جاري قراءة المنتجات والأسعار','نتأكد من أسماء المنتجات والأسعار الأصلية بالدولار.'],
+            ['نتحقق من الصور والمقاسات والألوان','نرتب تفاصيل كل منتج بدون ما نغيّر السعر المستورد.'],
+            ['قربنا نكمل... يتم تجهيز السلة للعرض','باقي خطوة بسيطة وتظهر لك السلة كاملة.'],
+        ];
+        forms.forEach(form => form.addEventListener('submit', () => {
+            const button = form.querySelector('button[type="submit"]');
+            if (button) {
+                button.disabled = true;
+                button.querySelector('.submit-label')?.replaceChildren(document.createTextNode('جاري الجلب...'));
+                button.querySelector('.spinner-border')?.classList.remove('d-none');
+            }
+            overlay.classList.add('is-open');
+            overlay.setAttribute('aria-hidden','false');
+            document.body.classList.add('is-importing-cart');
+            let index = 0;
+            window.setInterval(() => {
+                index = (index + 1) % messages.length;
+                if (title) title.textContent = messages[index][0];
+                if (message) message.textContent = messages[index][1];
+            }, 2400);
+        }));
+    };
+
+    const responsiveTables = () => {
+        document.querySelectorAll('.admin-main .table-modern').forEach((table) => {
+            const labels = Array.from(table.querySelectorAll('thead th')).map((cell) => cell.textContent.trim());
+            table.querySelectorAll('tbody tr').forEach((row) => {
+                Array.from(row.children).forEach((cell, index) => {
+                    if (cell.hasAttribute('colspan') || cell.dataset.label) return;
+                    const label = labels[index] || '';
+                    if (label) cell.setAttribute('data-label', label);
+                });
+            });
+        });
+    };
+
+    const boot = () => { reveal(); flash(); confirmations(); cartImportLoading(); responsiveTables(); };
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once: true });
     else boot();
 })();

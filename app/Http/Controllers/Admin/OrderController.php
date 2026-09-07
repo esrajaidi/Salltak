@@ -40,9 +40,10 @@ class OrderController extends Controller
 
     public function show(Order $order)
     {
-        $order->load(['user','assignee','cart.store','items.messages.user','messages.user','histories.user','payments.method','payments.verifier']);
+        $order->load(['user','assignee','cart.store','messages.user','histories.user','payments.method','payments.verifier'])->loadCount('items');
+        $itemsPage = $order->items()->with('messages.user')->orderBy('id')->paginate(10, ['*'], 'items_page')->withQueryString();
         $managers = User::query()->whereIn('role',['admin','order_manager'])->where('is_active',true)->orderBy('name')->get();
-        return view('admin.orders.show', compact('order','managers'));
+        return view('admin.orders.show', compact('order','managers','itemsPage'));
     }
 
     public function assign(Request $request, Order $order)
@@ -105,6 +106,7 @@ class OrderController extends Controller
             'deposit_mode'=>['required',Rule::in(['auto','none','percentage','fixed'])],
             'deposit_value'=>['nullable','numeric','min:0','max:999999999'],
             'payment_terms_note'=>['nullable','string','max:1500'],
+            'decision_note'=>['nullable','string','max:1500'],
         ]);
         if ($order->items()->where('review_status','pending')->exists()) return back()->withErrors(['order'=>'راجع كل المنتجات قبل اعتماد الطلب.']);
         if ($order->items()->whereIn('review_status',['unavailable','price_changed','option_issue'])->whereNull('customer_decision')->exists()) return back()->withErrors(['order'=>'هناك منتجات تحتاج رد العميل قبل الاعتماد.']);
@@ -116,7 +118,7 @@ class OrderController extends Controller
         $amount = $this->workflow->applyPaymentTerms($order,$data['deposit_mode'],isset($data['deposit_value'])?(float)$data['deposit_value']:null,$data['payment_terms_note']??null);
         $order->update(['approved_at'=>now(),'reviewed_at'=>$order->reviewed_at ?: now()]);
         $this->audit->log('order.payment_terms_set', 'تحديد شروط الدفع', $request->user(), $order, $data['payment_terms_note']??null, ['deposit_mode'=>$data['deposit_mode'],'deposit_value'=>$data['deposit_value']??null,'deposit_amount'=>$amount], $order);
-        if ($order->status !== 'approved') $this->workflow->transition($order,'approved',$request->user(),'تم اعتماد المنتجات والسعر النهائي.');
+        if ($order->status !== 'approved') $this->workflow->transition($order,'approved',$request->user(),$data['decision_note']??'تم قبول الطلب وتم اعتماد المنتجات والسعر النهائي.');
         $to = $amount > 0 ? 'awaiting_deposit' : 'awaiting_payment';
         $this->workflow->transition($order,$to,$request->user(),'شروط الدفع: العربون المطلوب '.number_format($amount,2).' د.ل');
         return back()->with('success','تم اعتماد الطلب وتحديد شروط الدفع.');
@@ -142,12 +144,10 @@ class OrderController extends Controller
         $data = $request->validate([
             'status'=>['required',Rule::in(Order::STATUSES)],
             'reason'=>['nullable','string','max:1500'],
-            'visibility'=>['nullable',Rule::in(['customer','internal'])],
+            'visibility'=>['nullable',Rule::in(['auto','customer','internal'])],
         ]);
-        $sensitive = in_array($data['status'], ['rejected','cancelled','needs_customer_action'], true);
-        if ($sensitive && trim((string)($data['reason']??''))==='') return back()->withErrors(['reason'=>'اكتب سبب أو ملاحظة واضحة لهذه الحالة.']);
-        $visibility = $sensitive ? 'customer' : ($data['visibility'] ?? 'customer');
-        $this->workflow->transition($order,$data['status'],$request->user(),$data['reason']??null,$visibility);
+        if ($this->workflow->requiresReason($data['status']) && trim((string)($data['reason']??''))==='') return back()->withErrors(['reason'=>'اكتب سبب أو ملاحظة واضحة لهذه الحالة.']);
+        $this->workflow->transition($order,$data['status'],$request->user(),$data['reason']??null,$data['visibility'] ?? 'auto');
         return back()->with('success','تم تحديث حالة الطلب وحفظ الحركة في السجل.');
     }
 

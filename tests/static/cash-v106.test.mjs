@@ -1,0 +1,11 @@
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+const config = fs.readFileSync('config/libya_payment_methods.php','utf8');
+const model = fs.readFileSync('app/Models/PaymentMethod.php','utf8');
+const controller = fs.readFileSync('app/Http/Controllers/PaymentController.php','utf8');
+assert.match(config, /cash_on_delivery/);
+assert.match(config, /allow_deposit/);
+assert.match(model, /function allowsDeposit\s*\(/);
+assert.match(model, /cash_on_delivery|delivery_only/);
+assert.match(controller, /pending_verification/);
+console.log('cash-v106: PASS');

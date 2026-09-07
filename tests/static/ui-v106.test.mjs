@@ -1,0 +1,13 @@
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+const admin = fs.readFileSync('resources/views/layouts/admin.blade.php','utf8');
+const dashboard = fs.readFileSync('resources/views/admin/dashboard.blade.php','utf8');
+const create = fs.readFileSync('resources/views/carts/create.blade.php','utf8');
+const customerOrder = fs.readFileSync('resources/views/orders/show.blade.php','utf8');
+assert.match(admin, /<x-icon/);
+assert.doesNotMatch(admin, /Salltak Backoffice|⌂|✓|▣|⚙|☰/);
+assert.doesNotMatch(dashboard, />\s*(?:Operations Center|Priority Queue|Payments|SLA Watch|Audit Monitor)\s*</);
+assert.match(create, /استنا شوية/);
+assert.match(create, /cart-import-overlay/);
+assert.doesNotMatch(customerOrder, /name="(?:unit_price|reviewed_unit_price|unit_price_usd|unit_price_lyd)"/);
+console.log('ui-v106: PASS');

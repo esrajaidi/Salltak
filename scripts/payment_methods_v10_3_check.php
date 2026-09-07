@@ -5,7 +5,7 @@ $schemas = $catalog['schemas'] ?? [];
 $failures = 0;
 $codes = array_column($methods, 'code');
 $checks = [
-    'catalog has 22 entries' => count($methods) === 22,
+    'catalog has 23 entries' => count($methods) === 23,
     'codes unique' => count(array_unique($codes)) === count($codes),
     'LYPay exists' => in_array('lypay', $codes, true),
     'OnePay exists' => in_array('onepay', $codes, true),

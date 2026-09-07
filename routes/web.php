@@ -7,6 +7,7 @@ use App\Http\Controllers\Admin\ExchangeRateController;
 use App\Http\Controllers\Admin\OrderController as AdminOrderController;
 use App\Http\Controllers\Admin\PaymentMethodController;
 use App\Http\Controllers\Admin\SettingController;
+use App\Http\Controllers\Admin\SiteContentController;
 use App\Http\Controllers\Admin\StoreController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\AuthController;
@@ -94,5 +95,12 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'backoffice'])->grou
 
         Route::get('/settings', [SettingController::class, 'edit'])->name('settings.edit');
         Route::put('/settings', [SettingController::class, 'update'])->name('settings.update');
+
+        Route::get('/site-content', [SiteContentController::class, 'index'])->name('site-content.index');
+        Route::get('/site-content/preview', [SiteContentController::class, 'preview'])->name('site-content.preview');
+        Route::post('/site-content/publish-all', [SiteContentController::class, 'publishAll'])->name('site-content.publish-all');
+        Route::get('/site-content/{siteSection}/edit', [SiteContentController::class, 'edit'])->name('site-content.edit');
+        Route::put('/site-content/{siteSection}', [SiteContentController::class, 'update'])->name('site-content.update');
+        Route::post('/site-content/{siteSection}/publish', [SiteContentController::class, 'publish'])->name('site-content.publish');
     });
 });

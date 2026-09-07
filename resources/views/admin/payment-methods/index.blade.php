@@ -2,10 +2,10 @@
 @section('title','طرق الدفع')
 @section('admin-content')
 @php
-    $activeCount = $methods->where('is_active', true)->count();
-    $readyCount = $methods->filter(fn($m) => $m->activationIssues() === [])->count();
+    $activeCount = $activeTotal;
+    $readyCount = $readyTotal;
     $docLabels = [
-        'public_docs_partner_api_restricted' => 'وثائق عامة + API عبر جهة مرخصة',
+        'public_docs_partner_api_restricted' => 'وثائق عامة + ربط برمجي عبر جهة مرخصة',
         'public_standard' => 'معيار رسمي منشور',
         'merchant_docs_required' => 'يحتاج وثائق/عقد التاجر',
         'acquirer_docs_required' => 'يحتاج وثائق المصرف/المعالج',
@@ -22,7 +22,7 @@
             <h1 class="page-heading">طرق الدفع في ليبيا</h1>
             <p class="page-subtitle mb-0">فعّل فقط الطريقة التي أكملت بيانات استقبالها. العميل لا يرى أي طريقة ناقصة أو متوقفة.</p>
         </div>
-        <form method="POST" action="{{ route('admin.payment-methods.install-libya') }}">
+        <form method="POST" action="{{ route('admin.payment-methods.install-libya') }}" data-confirm data-confirm-title="تحديث دليل طرق الدفع" data-confirm-text="سيتم تحديث الطرق مع الحفاظ على بيانات التاجر الموجودة.">
             @csrf
             <button class="btn btn-primary" type="submit">تثبيت / تحديث الدليل الليبي</button>
         </form>
@@ -30,10 +30,10 @@
 </div>
 
 <div class="row g-3 mb-4">
-    <div class="col-6 col-xl-3"><div class="summary-tile h-100"><div class="summary-label">إجمالي الطرق</div><div class="summary-value">{{ $methods->count() }}</div></div></div>
+    <div class="col-6 col-xl-3"><div class="summary-tile h-100"><div class="summary-label">إجمالي الطرق</div><div class="summary-value">{{ $methodsTotal }}</div></div></div>
     <div class="col-6 col-xl-3"><div class="summary-tile h-100"><div class="summary-label">المفعلة</div><div class="summary-value text-success">{{ $activeCount }}</div></div></div>
     <div class="col-6 col-xl-3"><div class="summary-tile h-100"><div class="summary-label">جاهزة للتفعيل</div><div class="summary-value">{{ $readyCount }}</div></div></div>
-    <div class="col-6 col-xl-3"><div class="summary-tile h-100"><div class="summary-label">تحتاج إعداد</div><div class="summary-value text-warning">{{ $methods->count() - $readyCount }}</div></div></div>
+    <div class="col-6 col-xl-3"><div class="summary-tile h-100"><div class="summary-label">تحتاج إعداد</div><div class="summary-value text-warning">{{ $methodsTotal - $readyCount }}</div></div></div>
 </div>
 
 <div class="surface-card admin-panel p-3 mb-4 reveal is-visible">
@@ -99,13 +99,7 @@
              data-search="{{ $searchText }}">
         <div class="payment-method-card-head">
             <div class="payment-method-icon" aria-hidden="true">
-                @switch($method->type)
-                    @case('wallet') ◉ @break
-                    @case('bank') ⇄ @break
-                    @case('api') ▣ @break
-                    @case('cash') د.ل @break
-                    @default ✓
-                @endswitch
+                <x-icon :name="match($method->type){'wallet'=>'wallet','bank'=>'exchange','api'=>'payment','cash'=>'cash',default=>'check'}" size="20" />
             </div>
             <div class="flex-grow-1 min-w-0">
                 <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
@@ -118,7 +112,7 @@
 
         <div class="payment-method-meta">
             <span><b>الوضع:</b> {{ $modeLabel }}</span>
-            <span><b>الظهور:</b> {{ ($cfg['availability']??'online')==='delivery_only' ? 'التسليم فقط' : 'أونلاين' }}</span>
+            <span><b>الظهور:</b> {{ ($cfg['availability']??'online')==='delivery_only' ? 'التسليم فقط' : (($cfg['availability']??'online')==='all'?'كل مراحل الدفع':'الدفع المسبق') }}</span>
             <span class="{{ $ready ? 'text-success' : 'text-warning' }}"><b>الإعداد:</b> {{ $ready ? 'جاهز' : 'ناقص' }}</span>
         </div>
 
@@ -132,7 +126,7 @@
 
         <div class="payment-method-actions">
             <button class="btn btn-outline-primary btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#paymentMethodModal{{ $method->id }}">الإعدادات</button>
-            <form method="POST" action="{{ route('admin.payment-methods.toggle',$method) }}">@csrf @method('PATCH')
+            <form method="POST" action="{{ route('admin.payment-methods.toggle',$method) }}" data-confirm data-confirm-title="تغيير حالة طريقة الدفع" data-confirm-text="سيتم تحديث ظهور هذه الطريقة للعملاء حسب اكتمال إعدادها.">@csrf @method('PATCH')
                 <button class="btn {{ $method->is_active ? 'btn-danger-soft' : 'btn-primary' }} btn-sm" type="submit">{{ $method->is_active ? 'إيقاف' : 'تفعيل' }}</button>
             </form>
         </div>
@@ -160,7 +154,7 @@
                         <div class="payment-doc-banner mb-4">
                             <div>
                                 <strong>{{ $docLabels[$cfg['documentation_status'] ?? 'custom'] ?? ($cfg['documentation_status'] ?? 'مخصص') }}</strong>
-                                <div class="small text-secondary mt-1">لا يتم اختراع API. أي بيانات سرية هنا تأتي من عقد التاجر/المصرف فقط.</div>
+                                <div class="small text-secondary mt-1">لا يتم إنشاء ربط برمجي وهمي. أي بيانات سرية هنا تأتي من عقد التاجر أو المصرف فقط.</div>
                             </div>
                             @if(!empty($cfg['official_source']) && str_starts_with($cfg['official_source'],'http'))
                                 <a class="btn btn-light btn-sm" href="{{ $cfg['official_source'] }}" target="_blank" rel="noopener">المصدر الرسمي</a>
@@ -175,9 +169,9 @@
                             <div class="col-md-3"><label class="form-label">الرسوم</label><select class="form-select" name="fee_type">@foreach(['none'=>'بدون رسوم','percentage'=>'نسبة %','fixed'=>'مبلغ ثابت'] as $k=>$v)<option value="{{ $k }}" @selected($method->fee_type===$k)>{{ $v }}</option>@endforeach</select></div>
                             <div class="col-md-3"><label class="form-label">قيمة الرسوم</label><input class="form-control" type="number" step="0.01" min="0" name="fee_value" value="{{ $method->fee_value }}" required></div>
                             <div class="col-md-3"><label class="form-label">وضع الربط</label><select class="form-select" name="config[integration_mode]">@foreach(($schema['modes']??['manual_verification'=>'تحقق يدوي']) as $k=>$v)<option value="{{ $k }}" @selected($method->integrationMode()===$k)>{{ $v }}</option>@endforeach</select></div>
-                            <div class="col-md-3"><label class="form-label">متى يظهر؟</label><select class="form-select" name="config[availability]"><option value="online" @selected(($cfg['availability']??'online')==='online')>أثناء الدفع أونلاين</option><option value="delivery_only" @selected(($cfg['availability']??'')==='delivery_only')>وقت التسليم/الرصيد الأخير</option><option value="all" @selected(($cfg['availability']??'')==='all')>كل المراحل المسموحة</option></select></div>
+                            <div class="col-md-3"><label class="form-label">متى يظهر؟</label><select class="form-select" name="config[availability]"><option value="online" @selected(($cfg['availability']??'online')==='online')>الدفع المسبق</option><option value="delivery_only" @selected(($cfg['availability']??'')==='delivery_only')>وقت التسليم أو الرصيد الأخير</option><option value="all" @selected(($cfg['availability']??'')==='all')>كل مراحل الدفع المسموحة</option></select></div>
                             <div class="col-md-3"><label class="form-label">إثبات الدفع</label><select class="form-select" name="config[proof_mode]">@foreach(['reference_or_receipt'=>'رقم عملية أو إيصال','reference'=>'رقم عملية فقط','receipt'=>'إيصال فقط','none'=>'بدون إثبات'] as $k=>$v)<option value="{{ $k }}" @selected($method->proofMode()===$k)>{{ $v }}</option>@endforeach</select></div>
-                            <div class="col-md-3"><label class="form-label">العملة</label><input class="form-control ltr" name="config[currency]" value="{{ $cfg['currency'] ?? 'LYD' }}"></div>
+                            <div class="col-md-3"><label class="form-label">العملة</label><input class="form-control ltr" name="config[currency]" value="{{ $cfg['currency'] ?? 'LYD' }}"></div><div class="col-12"><div class="payment-capability-box"><div><strong>استخدام الطريقة داخل دورة الطلب</strong><small>حدد هل تقبل هذه الطريقة العربون أو الرصيد المتبقي.</small></div><label class="form-check form-switch"><input class="form-check-input" type="checkbox" name="config[allow_deposit]" value="1" @checked($method->allowsDeposit())><span class="form-check-label">تسمح بدفع العربون</span></label><label class="form-check form-switch"><input class="form-check-input" type="checkbox" name="config[allow_balance]" value="1" @checked($method->allowsBalance())><span class="form-check-label">تسمح بسداد الرصيد</span></label></div></div>
                         </div>
 
                         @if(!empty($schema['fields']))
@@ -214,6 +208,7 @@
     <div class="surface-card p-4 text-center text-secondary">لا توجد طرق دفع. اضغط تثبيت/تحديث الدليل الليبي.</div>
 @endforelse
 </div>
+@if($methodsPage->hasPages())<div class="mt-4 pagination-shell">{{ $methodsPage->links() }}</div>@endif
 
 <script>
 (() => {

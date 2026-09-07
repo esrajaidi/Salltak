@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use App\Models\Cart;
+use App\Models\Store;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -24,6 +26,26 @@ class ResponsiveBootstrapUiTest extends TestCase
     public function test_customer_cart_index_uses_responsive_bootstrap_grid(): void
     {
         $user = User::factory()->create();
+        $store = Store::create([
+            'name' => 'SHEIN',
+            'slug' => 'shein-responsive-test',
+            'domains' => ['shein.com'],
+            'currency' => 'USD',
+            'adapter' => 'shein',
+            'is_active' => true,
+        ]);
+        Cart::create([
+            'user_id' => $user->id,
+            'store_id' => $store->id,
+            'source_url' => 'https://m.shein.com/ar/cart/share/landing?group_id=responsive-test',
+            'source_host' => 'm.shein.com',
+            'source_currency' => 'USD',
+            'exchange_rate' => 7,
+            'subtotal_original' => 10,
+            'total_lyd' => 70,
+            'status' => 'saved',
+            'import_status' => 'success',
+        ]);
 
         $this->actingAs($user)->get('/my-carts')
             ->assertOk()

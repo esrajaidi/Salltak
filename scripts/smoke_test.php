@@ -30,7 +30,7 @@ $sampleItems = $extract->invoke(
 
 
 $escapedHtml = <<<'HTML'
-<html><script>self.__next_f.push([1,"{\"cartShareData\":{\"goods_list\":[{\"quantity\":3,\"goods_info\":{\"goods_id\":\"3\",\"goods_name\":\"Shoes\",\"goods_img\":{\"origin_image\":\"//img.test/c.jpg\"},\"sale_price\":{\"amount\":\"19.50\",\"currency\":\"AED\"},\"sku_sale_attr\":[{\"attr_name\":\"Color\",\"attr_value\":\"White\"},{\"attr_name\":\"Size\",\"attr_value\":\"39\"}]}}]}}"]);</script></html>
+<html><script>self.__next_f.push([1,"{\"cartShareData\":{\"goods_list\":[{\"quantity\":3,\"goods_info\":{\"goods_id\":\"3\",\"goods_name\":\"Shoes\",\"goods_img\":{\"origin_image\":\"//img.test/c.jpg\"},\"sale_price\":{\"amount\":\"19.50\",\"usdAmount\":\"5.19\",\"currency\":\"AED\"},\"sku_sale_attr\":[{\"attr_name\":\"Color\",\"attr_value\":\"White\"},{\"attr_name\":\"Size\",\"attr_value\":\"39\"}]}}]}}"]);</script></html>
 HTML;
 $escapedItems = $extract->invoke(
     $adapter,
@@ -119,6 +119,7 @@ $checks = [
     'SHEIN nested quantity extraction' => ($escapedItems[0]['quantity'] ?? 0) === 3,
     'SHEIN nested image extraction' => ($escapedItems[0]['image_url'] ?? '') === 'https://img.test/c.jpg',
     'SHEIN nested attributes extraction' => ($escapedItems[0]['color'] ?? '') === 'White' && ($escapedItems[0]['size'] ?? '') === '39',
+    'SHEIN escaped state uses authoritative USD amount' => abs((float) ($escapedItems[0]['unit_price_original'] ?? 0) - 5.19) < 0.001 && ($escapedItems[0]['currency'] ?? '') === 'USD',
     'SHEIN recommendations excluded' => count($recommendItems) === 1 && ($recommendItems[0]['name'] ?? '') === 'Real Cart Dress',
     'Playwright payload noise not re-added' => count($browserWithPayloadNoise) === 1 && ($browserWithPayloadNoise[0]['name'] ?? '') === 'Real Browser Cart Item',
     'Playwright item normalization' => count($browserItems) === 1 && ($browserItems[0]['name'] ?? '') === 'Browser Dress' && ($browserItems[0]['quantity'] ?? 0) === 2,

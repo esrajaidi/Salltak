@@ -65,6 +65,17 @@ class PaymentMethod extends Model
         return (string) (($this->config ?? [])['availability'] ?? 'online');
     }
 
+    public function allowsDeposit(): bool
+    {
+        $default = $this->availability() !== 'delivery_only';
+        return filter_var(($this->config ?? [])['allow_deposit'] ?? $default, FILTER_VALIDATE_BOOL);
+    }
+
+    public function allowsBalance(): bool
+    {
+        return filter_var(($this->config ?? [])['allow_balance'] ?? true, FILTER_VALIDATE_BOOL);
+    }
+
     public function catalogDefinition(): array
     {
         foreach (config('libya_payment_methods.methods', []) as $definition) {
@@ -145,7 +156,14 @@ class PaymentMethod extends Model
 
     public function canOfferForOrder(Order $order, float $amount): bool
     {
-        if (! $this->supports($amount) || ! $this->isConfiguredForActivation()) {
+        if (! $this->supports($amount)) {
+            return false;
+        }
+
+        // Catalog-backed Libya methods must satisfy their official/configured
+        // activation schema. Custom/manual methods created by the administrator
+        // are intentionally allowed to define their own proof/instruction flow.
+        if ($this->catalogDefinition() !== [] && ! $this->isConfiguredForActivation()) {
             return false;
         }
 
@@ -153,8 +171,18 @@ class PaymentMethod extends Model
             return false;
         }
 
+        $depositStage = $order->status === 'awaiting_deposit';
+        if ($depositStage && ! $this->allowsDeposit()) {
+            return false;
+        }
+
         if ($this->availability() === 'delivery_only') {
-            return in_array($order->status, ['arrived_libya','awaiting_balance','ready_for_delivery','out_for_delivery'], true);
+            return in_array($order->status, ['arrived_libya','awaiting_balance','ready_for_delivery','out_for_delivery'], true)
+                && $this->allowsBalance();
+        }
+
+        if (in_array($order->status, ['arrived_libya','awaiting_balance','ready_for_delivery','out_for_delivery'], true) && ! $this->allowsBalance()) {
+            return false;
         }
 
         return true;

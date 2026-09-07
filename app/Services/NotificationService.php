@@ -9,6 +9,8 @@ use Illuminate\Support\Collection;
 
 class NotificationService
 {
+    public function __construct(private readonly CustomerOrderEmailNotifier $customerEmail) {}
+
     public function notifyUser(User $user, string $type, string $title, ?string $body = null, ?string $url = null, ?string $icon = null, array $data = []): AppNotification
     {
         return $user->appNotifications()->create([
@@ -28,7 +30,7 @@ class NotificationService
             return null;
         }
 
-        return $this->notifyUser(
+        $notification = $this->notifyUser(
             $order->user,
             $type,
             $title,
@@ -37,6 +39,10 @@ class NotificationService
             $icon,
             array_merge(['order_id' => $order->id, 'order_number' => $order->number], $data),
         );
+
+        $this->customerEmail->send($order, $title, $body);
+
+        return $notification;
     }
 
     public function notifyBackoffice(Order $order, string $type, string $title, ?string $body = null, ?string $icon = null, array $data = []): Collection

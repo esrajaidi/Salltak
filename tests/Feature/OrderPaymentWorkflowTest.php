@@ -112,4 +112,37 @@ class OrderPaymentWorkflowTest extends TestCase
         ])->assertSessionHasErrors('payment_method_id');
     }
 
+    public function test_submitting_cart_marks_it_submitted_and_second_submit_reuses_same_order(): void
+    {
+        $user = User::factory()->create(['role'=>'customer']);
+        $store = Store::create(['name'=>'SHEIN','slug'=>'shein-lock','domains'=>['shein.com'],'currency'=>'USD','adapter'=>'shein','is_active'=>true]);
+        $cart = Cart::create(['user_id'=>$user->id,'store_id'=>$store->id,'source_url'=>'https://m.shein.com/ar/cart/share/landing?group_id=lock','source_host'=>'m.shein.com','source_currency'=>'USD','exchange_rate'=>7,'subtotal_original'=>10,'total_lyd'=>70,'status'=>'saved','import_status'=>'success']);
+        $cart->items()->create(['name'=>'Item','quantity'=>1,'unit_price_original'=>10,'line_total_original'=>10,'currency'=>'USD']);
+
+        $first = $this->actingAs($user)->post(route('orders.from-cart',$cart));
+        $order = Order::where('cart_id',$cart->id)->firstOrFail();
+        $first->assertRedirect(route('orders.show',$order));
+        $this->assertSame('submitted', $cart->fresh()->status);
+
+        $this->actingAs($user)->post(route('orders.from-cart',$cart))
+            ->assertRedirect(route('orders.show',$order));
+
+        $this->assertSame(1, Order::where('cart_id',$cart->id)->count());
+    }
+
+    public function test_submitted_cart_cannot_be_cancelled_or_deleted(): void
+    {
+        $user = User::factory()->create(['role'=>'customer']);
+        $cart = Cart::create(['user_id'=>$user->id,'source_url'=>'https://example.com/cart','source_host'=>'example.com','source_currency'=>'USD','exchange_rate'=>7,'subtotal_original'=>10,'total_lyd'=>70,'status'=>'submitted','import_status'=>'success']);
+        Order::create(['user_id'=>$user->id,'cart_id'=>$cart->id,'status'=>'submitted','payment_status'=>'unpaid','subtotal_lyd'=>70,'total_lyd'=>70,'remaining_amount'=>70,'submitted_at'=>now()]);
+
+        $this->actingAs($user)->patch(route('carts.cancel',$cart))
+            ->assertSessionHasErrors('cart');
+        $this->assertDatabaseHas('carts',['id'=>$cart->id,'status'=>'submitted']);
+
+        $this->actingAs($user)->delete(route('carts.destroy',$cart))
+            ->assertSessionHasErrors('cart');
+        $this->assertDatabaseHas('carts',['id'=>$cart->id]);
+    }
+
 }
