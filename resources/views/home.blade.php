@@ -11,8 +11,8 @@
                 <p class="hero-copy mb-4">الصقي رابط مشاركة السلة، وسلتك تجيب المنتجات الحقيقية بصورها ومقاساتها وألوانها، تعرض السعر بالدولار USD وتحوله تلقائياً إلى الدينار الليبي حسب سعر الصرف عندك.</p>
                 <div class="d-flex flex-column flex-sm-row gap-2">
                     @auth
-                        <a class="btn btn-primary btn-lg px-4" href="{{ auth()->user()->isAdmin() ? route('admin.dashboard') : route('carts.create') }}">{{ auth()->user()->isAdmin() ? 'افتح لوحة الإدارة' : 'استورد سلتك الآن' }} ←</a>
-                        @unless(auth()->user()->isAdmin())<a class="btn btn-navy btn-lg px-4" href="{{ route('carts.index') }}">سلاتي المحفوظة</a>@endunless
+                        <a class="btn btn-primary btn-lg px-4" href="{{ in_array(auth()->user()->role, ['admin','order_manager'], true) ? route('admin.dashboard') : route('carts.create') }}">{{ in_array(auth()->user()->role, ['admin','order_manager'], true) ? 'افتح لوحة الإدارة' : 'استورد سلتك الآن' }} ←</a>
+                        @unless(in_array(auth()->user()->role, ['admin','order_manager'], true))<a class="btn btn-navy btn-lg px-4" href="{{ route('carts.index') }}">سلاتي المحفوظة</a>@endunless
                     @else
                         <a class="btn btn-primary btn-lg px-4" href="{{ route('register') }}">ابدئي الآن ←</a>
                         <a class="btn btn-navy btn-lg px-4" href="#how-it-works">شاهد كيف تعمل</a>
@@ -86,7 +86,7 @@
 <section class="section-space pt-0">
     <div class="container">
         <div class="landing-cta reveal" id="landing-cta">
-            <div class="row align-items-center g-4 position-relative" style="z-index:1"><div class="col-auto"><div class="cta-icon">س</div></div><div class="col"><div class="page-kicker">ابدئي من رابط واحد</div><h2 class="h2 section-title mb-2">خلي سلتك العالمية أوضح وأسهل</h2><p class="page-subtitle mb-0">استوردي، راجعي، حوّلي السعر واحفظي — في مكان واحد.</p></div><div class="col-lg-auto">@auth<a class="btn btn-primary btn-lg" href="{{ auth()->user()->isAdmin() ? route('admin.dashboard') : route('carts.create') }}">ابدئي الآن ←</a>@else<a class="btn btn-primary btn-lg" href="{{ route('register') }}">إنشاء حساب مجاني ←</a>@endauth</div></div>
+            <div class="row align-items-center g-4 position-relative" style="z-index:1"><div class="col-auto"><div class="cta-icon">س</div></div><div class="col"><div class="page-kicker">ابدئي من رابط واحد</div><h2 class="h2 section-title mb-2">خلي سلتك العالمية أوضح وأسهل</h2><p class="page-subtitle mb-0">استوردي، راجعي، حوّلي السعر واحفظي — في مكان واحد.</p></div><div class="col-lg-auto">@auth<a class="btn btn-primary btn-lg" href="{{ in_array(auth()->user()->role, ['admin','order_manager'], true) ? route('admin.dashboard') : route('carts.create') }}">ابدئي الآن ←</a>@else<a class="btn btn-primary btn-lg" href="{{ route('register') }}">إنشاء حساب مجاني ←</a>@endauth</div></div>
         </div>
     </div>
 </section>

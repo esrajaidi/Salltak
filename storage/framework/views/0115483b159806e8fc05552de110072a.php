@@ -12,7 +12,7 @@
             <a class="btn btn-ghost" href="<?php echo e(route('carts.create')); ?>">تغيير الرابط</a>
         </div>
 
-        <div class="surface-card-elevated reveal p-3 p-md-4">
+        <div class="surface-card-elevated reveal is-visible p-3 p-md-4">
             <div class="alert <?php echo e($result->status === 'success' ? 'alert-success' : 'alert-warning'); ?> border-0 import-alert mb-3">
                 <div class="import-alert-icon"><?php echo e($result->status === 'success' ? '✓' : '!'); ?></div>
                 <div class="flex-grow-1">

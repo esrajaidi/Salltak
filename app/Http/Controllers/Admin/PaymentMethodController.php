@@ -5,11 +5,14 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\PaymentMethod;
 use App\Services\LibyaPaymentMethodCatalog;
+use App\Services\AuditLogger;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
 class PaymentMethodController extends Controller
 {
+    public function __construct(private readonly AuditLogger $audit) {}
+
     public function index()
     {
         return view('admin.payment-methods.index', [
@@ -21,7 +24,8 @@ class PaymentMethodController extends Controller
     {
         $data = $this->validated($request);
         $data['config'] = $this->config($request);
-        PaymentMethod::create($data);
+        $method = PaymentMethod::create($data);
+        $this->audit->log('payment_method.created', 'إضافة طريقة دفع', $request->user(), $method, $method->name);
 
         return back()->with('success', 'تمت إضافة طريقة الدفع.');
     }
@@ -35,13 +39,15 @@ class PaymentMethodController extends Controller
 
         if ($paymentMethod->is_active && ($issues = $paymentMethod->activationIssues())) {
             $paymentMethod->update(['is_active' => false]);
+            $this->audit->log('payment_method.updated', 'تحديث طريقة دفع وإيقافها تلقائيًا', $request->user(), $paymentMethod, implode(' ', $issues));
             return back()->with('success', 'تم حفظ الإعدادات وإيقاف الطريقة تلقائيًا لأنها غير مكتملة: '.implode(' ', $issues));
         }
 
+        $this->audit->log('payment_method.updated', 'تحديث طريقة دفع', $request->user(), $paymentMethod, $paymentMethod->name);
         return back()->with('success', 'تم تحديث طريقة الدفع.');
     }
 
-    public function toggle(PaymentMethod $paymentMethod)
+    public function toggle(Request $request, PaymentMethod $paymentMethod)
     {
         if (! $paymentMethod->is_active) {
             $issues = $paymentMethod->activationIssues();
@@ -53,15 +59,18 @@ class PaymentMethodController extends Controller
         }
 
         $paymentMethod->update(['is_active' => ! $paymentMethod->is_active]);
+        $paymentMethod->refresh();
+        $this->audit->log('payment_method.toggled', $paymentMethod->is_active ? 'تفعيل طريقة دفع' : 'إيقاف طريقة دفع', $request->user(), $paymentMethod, $paymentMethod->name);
 
-        return back()->with('success', $paymentMethod->fresh()->is_active
+        return back()->with('success', $paymentMethod->is_active
             ? 'تم تفعيل طريقة الدفع وستظهر للعملاء عندما يناسب المبلغ وحالة الطلب.'
             : 'تم إيقاف طريقة الدفع ولن تظهر للعملاء.');
     }
 
-    public function installLibyaCatalog(LibyaPaymentMethodCatalog $catalog)
+    public function installLibyaCatalog(Request $request, LibyaPaymentMethodCatalog $catalog)
     {
         $result = $catalog->sync();
+        $this->audit->log('payment_method.catalog_synced', 'تحديث دليل الدفع الليبي', $request->user(), null, null, $result);
 
         return back()->with(
             'success',

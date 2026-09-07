@@ -58,7 +58,7 @@ class CartController extends Controller
             'import_message' => ['nullable', 'string', 'max:1000'],
             'items' => ['nullable', 'array', 'max:100'],
             'items.*.external_id' => ['nullable', 'string', 'max:190'],
-            'items.*.name' => ['required_with:items', 'string', 'max:500'],
+            'items.*.name' => ['required_with:items', 'string', 'max:2000'],
             'items.*.product_url' => ['nullable', 'url:http,https', 'max:2000'],
             'items.*.image_url' => ['nullable', 'url:http,https', 'max:2000'],
             'items.*.variant' => ['nullable', 'string', 'max:190'],

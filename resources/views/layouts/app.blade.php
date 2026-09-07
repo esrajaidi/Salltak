@@ -9,10 +9,12 @@
     <link rel="stylesheet" href="{{ asset('vendor/bootstrap/bootstrap.min.css') }}">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/css/bootstrap.rtl.min.css">
     <link rel="stylesheet" href="{{ asset('css/app.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="{{ asset('js/app-ui.js') }}" defer></script>
     @stack('styles')
 </head>
 <body>
+@unless(request()->routeIs('admin.*'))
 <nav class="navbar navbar-expand-lg app-navbar sticky-top" aria-label="التنقل الرئيسي">
     <div class="container">
         <a class="navbar-brand d-flex align-items-center gap-2 fw-bold" href="{{ route('home') }}">
@@ -28,7 +30,7 @@
             <ul class="navbar-nav me-lg-4 mb-2 mb-lg-0 align-items-lg-center gap-lg-1">
                 <li class="nav-item"><a class="nav-link {{ request()->routeIs('home') ? 'active' : '' }}" href="{{ route('home') }}">الرئيسية</a></li>
                 @auth
-                    @if(auth()->user()->isBackoffice())
+                    @if(in_array(auth()->user()->role, ['admin','order_manager'], true))
                         <li class="nav-item"><a class="nav-link {{ request()->routeIs('admin.*') ? 'active' : '' }}" href="{{ route('admin.dashboard') }}">لوحة الإدارة</a></li>
                     @else
                         <li class="nav-item"><a class="nav-link {{ request()->routeIs('orders.*') ? 'active' : '' }}" href="{{ route('orders.index') }}">طلباتي</a></li>
@@ -40,6 +42,7 @@
 
             <div class="d-flex flex-column flex-lg-row align-items-lg-center gap-2 me-lg-auto pt-2 pt-lg-0">
                 @auth
+                    @include('partials.notification-bell')
                     <div class="user-chip d-flex align-items-center gap-2">
                         <span class="avatar-circle">{{ mb_substr(auth()->user()->name, 0, 1) }}</span>
                         <span class="small fw-semibold">{{ auth()->user()->name }}</span>
@@ -56,27 +59,13 @@
         </div>
     </div>
 </nav>
+@endunless
 
-@if(session('success') || $errors->any())
-    <div class="container pt-3">
-        @if(session('success'))
-            <div class="alert alert-success alert-dismissible fade show border-0 shadow-sm" role="alert">
-                <strong>تم بنجاح.</strong> {{ session('success') }}
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="إغلاق"></button>
-            </div>
-        @endif
-        @if($errors->any())
-            <div class="alert alert-danger alert-dismissible fade show border-0 shadow-sm" role="alert">
-                <strong>يرجى مراجعة البيانات:</strong>
-                <ul class="mb-0 mt-2 pe-3">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="إغلاق"></button>
-            </div>
-        @endif
-    </div>
-@endif
+<div id="swal-flash" data-swal-success="{{ session('success') }}" data-swal-errors="{{ json_encode($errors->all(), JSON_UNESCAPED_UNICODE) }}" hidden></div>
 
 <main>@yield('body')</main>
 
+@unless(request()->routeIs('admin.*'))
 <footer class="app-footer mt-auto">
     <div class="container py-4 py-lg-5">
         <div class="row g-4 align-items-start">
@@ -86,7 +75,7 @@
             </div>
             <div class="col-6 col-lg-3">
                 <div class="footer-brand mb-2">روابط سريعة</div>
-                <div class="d-grid gap-2 small"><a href="{{ route('home') }}">الرئيسية</a>@auth @unless(auth()->user()->isBackoffice())<a href="{{ route('orders.index') }}">طلباتي</a><a href="{{ route('carts.index') }}">سلاتي</a><a href="{{ route('carts.create') }}">سلة جديدة</a>@endunless @endauth</div>
+                <div class="d-grid gap-2 small"><a href="{{ route('home') }}">الرئيسية</a>@auth @unless(in_array(auth()->user()->role, ['admin','order_manager'], true))<a href="{{ route('orders.index') }}">طلباتي</a><a href="{{ route('carts.index') }}">سلاتي</a><a href="{{ route('carts.create') }}">سلة جديدة</a>@endunless @endauth</div>
             </div>
             <div class="col-6 col-lg-4">
                 <div class="footer-brand mb-2">تجربة مصممة لليبيا</div>
@@ -96,6 +85,7 @@
         <div class="border-top footer-rule mt-4 pt-3 d-flex flex-column flex-md-row justify-content-between gap-2 small text-white-50"><span>جميع الحقوق محفوظة © {{ date('Y') }} سلتك</span><span>تسوّق عالمي، بوضوح محلي.</span></div>
     </div>
 </footer>
+@endunless
 
 <script src="{{ asset('vendor/bootstrap/bootstrap.bundle.min.js') }}"></script>
 @stack('scripts')

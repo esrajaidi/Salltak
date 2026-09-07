@@ -6,6 +6,8 @@ use App\Models\Cart;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\PaymentMethod;
+use App\Services\AuditLogger;
+use App\Services\NotificationService;
 use App\Services\OrderWorkflowService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -13,7 +15,11 @@ use Illuminate\Validation\Rule;
 
 class OrderController extends Controller
 {
-    public function __construct(private readonly OrderWorkflowService $workflow) {}
+    public function __construct(
+        private readonly OrderWorkflowService $workflow,
+        private readonly NotificationService $notifications,
+        private readonly AuditLogger $audit,
+    ) {}
 
     public function index(Request $request)
     {
@@ -53,9 +59,15 @@ class OrderController extends Controller
                     'line_total_lyd'=>round($unitLyd*(int)$item->quantity,2),'currency'=>$item->currency,
                 ]);
             }
-            $order->histories()->create(['user_id'=>$request->user()->id,'from_status'=>null,'to_status'=>'submitted','note'=>'تم إرسال السلة كطلب للمراجعة.']);
+            $order->histories()->create([
+                'user_id'=>$request->user()->id,'from_status'=>null,'to_status'=>'submitted',
+                'event_type'=>'status_changed','visibility'=>'customer','note'=>'تم إرسال السلة كطلب للمراجعة.',
+            ]);
             return $order;
         });
+
+        $this->audit->log('order.submitted', 'إرسال طلب جديد', $request->user(), $order, 'تم تحويل السلة إلى طلب للمراجعة.', [], $order);
+        $this->notifications->notifyBackoffice($order, 'order.submitted', 'طلب جديد '.$order->number, 'أرسل العميل طلبًا جديدًا ويحتاج المراجعة.', 'new-order');
 
         return redirect()->route('orders.show', $order)->with('success', 'تم إرسال الطلب للمراجعة بنجاح.');
     }
@@ -84,6 +96,8 @@ class OrderController extends Controller
             abort_unless($order->items()->whereKey($data['order_item_id'])->exists(), 422);
         }
         $order->messages()->create(['user_id'=>$request->user()->id,'order_item_id'=>$data['order_item_id']??null,'message'=>$data['message']]);
+        $this->audit->log('order.customer_message', 'رسالة جديدة من العميل', $request->user(), $order, $data['message'], ['order_item_id'=>$data['order_item_id']??null], $order);
+        $this->notifications->notifyBackoffice($order, 'order.customer_message', 'رسالة من العميل على '.$order->number, $data['message'], 'message');
         return back()->with('success', 'تم إرسال رسالتك للمسؤول.');
     }
 
@@ -95,10 +109,10 @@ class OrderController extends Controller
             'reply'=>['nullable','string','max:1500'],
         ]);
         $item->update(['customer_decision'=>$data['decision'],'customer_reply'=>$data['reply']??null]);
-        $order->messages()->create([
-            'user_id'=>$request->user()->id,'order_item_id'=>$item->id,
-            'message'=>($data['decision']==='accept'?'وافق العميل على التعديل.':'رفض العميل هذا المنتج/التعديل.').(!empty($data['reply'])?' '.$data['reply']:''),
-        ]);
+        $message = ($data['decision']==='accept'?'وافق العميل على التعديل.':'رفض العميل هذا المنتج/التعديل.').(!empty($data['reply'])?' '.$data['reply']:'');
+        $order->messages()->create(['user_id'=>$request->user()->id,'order_item_id'=>$item->id,'message'=>$message]);
+        $this->audit->log('order.item_customer_response', 'رد العميل على منتج', $request->user(), $item, $message, ['decision'=>$data['decision']], $order);
+        $this->notifications->notifyBackoffice($order, 'order.item_customer_response', 'رد العميل على منتج في '.$order->number, $message, 'item');
         if ($order->status === 'needs_customer_action') {
             $pendingReplies = $order->items()->whereIn('review_status',['unavailable','price_changed','option_issue'])
                 ->whereNull('customer_decision')->exists();

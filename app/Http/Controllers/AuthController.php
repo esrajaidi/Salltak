@@ -44,7 +44,7 @@ class AuthController extends Controller
         }
 
         $request->session()->regenerate();
-        return redirect()->intended($request->user()->isBackoffice() ? route('admin.dashboard') : route('carts.index'));
+        return redirect()->intended(in_array($request->user()->role, ['admin', 'order_manager'], true) ? route('admin.dashboard') : route('carts.index'));
     }
 
     public function logout(Request $request)

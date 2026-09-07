@@ -38,6 +38,16 @@ class User extends Authenticatable
         return $this->hasMany(Order::class, 'assigned_to');
     }
 
+    public function appNotifications()
+    {
+        return $this->hasMany(AppNotification::class);
+    }
+
+    public function auditLogs()
+    {
+        return $this->hasMany(AuditLog::class, 'actor_id');
+    }
+
     public function isAdmin(): bool
     {
         return $this->role === 'admin';

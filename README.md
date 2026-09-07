@@ -396,3 +396,30 @@ php artisan migrate
 php artisan db:seed --class=Database\\Seeders\\LibyaPaymentMethodsSeeder
 ```
 ثم افتح: **لوحة التحكم → طرق الدفع** واضبط بيانات الاستقبال/التاجر وفعّل الطرق التي تستخدمها فقط.
+
+# V10.5 — Premium order operations, notifications and monitoring
+
+V10.5 adds a premium customer order page, a new backoffice operations workspace, SweetAlert2 confirmations/toasts, database notifications, customer/internal order notes, persistent status history with note visibility, and a system audit log.
+
+Important rules:
+- The customer cannot edit original USD or LYD product prices.
+- Backoffice may review a LYD price and must provide a reason when the item changes or is unavailable.
+- Every status change is persisted with actor/time/from/to/note/visibility.
+- Internal notes are staff-only; customer notes appear in the customer timeline and create a notification.
+- Rejected/cancelled/needs-customer-action states require a reason.
+- Dashboard monitoring shows attention orders, pending payment checks, aging work and recent audit activity.
+
+Upgrade an existing MySQL database without deleting data:
+
+```bash
+php artisan optimize:clear
+php artisan migrate
+```
+
+Then verify:
+
+```bash
+php artisan test
+```
+
+See `SALLTAK_V10_5_NOTES.md` and `TEST_REPORT_V10_5.md`.

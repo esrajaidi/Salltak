@@ -11,7 +11,7 @@ return new class extends Migration {
             $table->id();
             $table->foreignId('cart_id')->constrained()->cascadeOnDelete();
             $table->string('external_id')->nullable();
-            $table->string('name');
+            $table->text('name');
             $table->text('product_url')->nullable();
             $table->text('image_url')->nullable();
             $table->string('variant')->nullable();

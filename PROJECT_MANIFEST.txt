@@ -6,6 +6,8 @@ README.md
 SALLTAK_V10_1_MYSQL_NOTES.md
 SALLTAK_V10_2_NOTES.md
 SALLTAK_V10_3_NOTES.md
+SALLTAK_V10_4_NOTES.md
+SALLTAK_V10_5_NOTES.md
 SALLTAK_V10_NOTES.md
 SALLTAK_V9_NOTES.md
 SHEIN_EXTRACTOR_V2.md
@@ -19,6 +21,8 @@ TEST_REPORT_V10.md
 TEST_REPORT_V10_1_MYSQL.md
 TEST_REPORT_V10_2.md
 TEST_REPORT_V10_3.md
+TEST_REPORT_V10_4.md
+TEST_REPORT_V10_5.md
 UI_V4_NOTES.md
 app/Http/Controllers/Admin/CartController.php
 app/Http/Controllers/Admin/DashboardController.php
@@ -33,10 +37,13 @@ app/Http/Controllers/AuthController.php
 app/Http/Controllers/CartController.php
 app/Http/Controllers/Controller.php
 app/Http/Controllers/HomeController.php
+app/Http/Controllers/NotificationController.php
 app/Http/Controllers/OrderController.php
 app/Http/Controllers/PaymentController.php
 app/Http/Middleware/AdminMiddleware.php
 app/Http/Middleware/BackofficeMiddleware.php
+app/Models/AppNotification.php
+app/Models/AuditLog.php
 app/Models/Cart.php
 app/Models/CartItem.php
 app/Models/DepositRule.php
@@ -51,6 +58,7 @@ app/Models/Store.php
 app/Models/SystemSetting.php
 app/Models/User.php
 app/Providers/AppServiceProvider.php
+app/Services/AuditLogger.php
 app/Services/CartImport/Adapters/GenericProductAdapter.php
 app/Services/CartImport/Adapters/SheinShareAdapter.php
 app/Services/CartImport/Browser/SheinBrowserImporter.php
@@ -60,6 +68,7 @@ app/Services/CartImport/ImportResult.php
 app/Services/DepositCalculator.php
 app/Services/LibyaPaymentMethodCatalog.php
 app/Services/MoneyCalculator.php
+app/Services/NotificationService.php
 app/Services/OrderWorkflowService.php
 app/Services/StoreUrlClassifier.php
 artisan
@@ -91,6 +100,8 @@ database/migrations/2026_09_07_090100_create_order_items_table.php
 database/migrations/2026_09_07_090200_create_order_messages_and_history_tables.php
 database/migrations/2026_09_07_090300_create_payment_methods_and_payments_tables.php
 database/migrations/2026_09_07_090400_create_deposit_rules_table.php
+database/migrations/2026_09_07_121500_expand_product_name_columns.php
+database/migrations/2026_09_07_133000_add_activity_notifications_and_audit.php
 database/mysql_setup.sql
 database/seeders/DatabaseSeeder.php
 database/seeders/LibyaPaymentMethodsSeeder.php
@@ -99,9 +110,11 @@ docs/superpowers/plans/2026-09-07-libya-payment-catalog-and-cart-reveal.md
 docs/superpowers/plans/2026-09-07-libya-payments-v10-3.md
 docs/superpowers/plans/2026-09-07-mysql-only.md
 docs/superpowers/plans/2026-09-07-orders-payments-workflow.md
+docs/superpowers/plans/2026-09-07-premium-orders-notifications-audit.md
 docs/superpowers/specs/2026-09-06-salltak-v9-ui-redesign-design.md
 docs/superpowers/specs/2026-09-07-libya-payments-v10-3-design.md
 docs/superpowers/specs/2026-09-07-orders-payments-workflow-design.md
+docs/superpowers/specs/2026-09-07-premium-orders-notifications-audit-design.md
 lang/ar/validation.php
 package.json
 phpunit.xml
@@ -131,10 +144,13 @@ resources/views/carts/show.blade.php
 resources/views/home.blade.php
 resources/views/layouts/admin.blade.php
 resources/views/layouts/app.blade.php
+resources/views/notifications/index.blade.php
 resources/views/orders/index.blade.php
 resources/views/orders/show.blade.php
+resources/views/partials/notification-bell.blade.php
 routes/console.php
 routes/web.php
+scripts/cart_item_long_name_schema_check.php
 scripts/deposit_calculator_v10_test.php
 scripts/order_payment_v10_check.php
 scripts/payment_methods_v10_2_check.php
@@ -154,6 +170,7 @@ tests/Feature/AdminAccessTest.php
 tests/Feature/AuthFlowTest.php
 tests/Feature/BackofficeAccessTest.php
 tests/Feature/CartFlowTest.php
+tests/Feature/OrderActivityNotificationTest.php
 tests/Feature/OrderPaymentWorkflowTest.php
 tests/Feature/PaymentMethodCatalogTest.php
 tests/Feature/ResponsiveBootstrapUiTest.php
@@ -163,7 +180,15 @@ tests/Node/shein-usd-price.test.mjs
 tests/TestCase.php
 tests/Unit/MoneyCalculatorTest.php
 tests/Unit/StoreUrlClassifierTest.php
+tests/static/activity-schema-v105.test.mjs
+tests/static/activity-services-v105.test.mjs
+tests/static/admin-ops-v105.test.mjs
+tests/static/controller-events-v105.test.mjs
+tests/static/customer-order-v105.test.mjs
 tests/static/payment-admin-v103.test.mjs
 tests/static/payment-catalog.test.mjs
 tests/static/payment-flow-v103.test.mjs
 tests/static/reveal-guard.test.mjs
+tests/static/role-safety-v105.test.mjs
+tests/static/system-audit-v105.test.mjs
+tests/static/ui-shell-v105.test.mjs

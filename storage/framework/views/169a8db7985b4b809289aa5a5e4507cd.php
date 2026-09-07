@@ -11,7 +11,7 @@
                 <a class="nav-link <?php echo e(request()->routeIs('admin.dashboard') ? 'active' : ''); ?>" href="<?php echo e(route('admin.dashboard')); ?>"><span class="nav-symbol">⌂</span><span>الرئيسية</span></a>
                 <a class="nav-link <?php echo e(request()->routeIs('admin.orders.*') ? 'active' : ''); ?>" href="<?php echo e(route('admin.orders.index')); ?>"><span class="nav-symbol">✓</span><span>الطلبات</span></a>
                 <a class="nav-link <?php echo e(request()->routeIs('admin.carts.*') ? 'active' : ''); ?>" href="<?php echo e(route('admin.carts.index')); ?>"><span class="nav-symbol">▣</span><span>السلات</span></a>
-                <?php if(auth()->user()->isAdmin()): ?>
+                <?php if(auth()->user()->role === 'admin'): ?>
                     <div class="admin-nav-label">إدارة النظام</div>
                     <a class="nav-link <?php echo e(request()->routeIs('admin.payment-methods.*') ? 'active' : ''); ?>" href="<?php echo e(route('admin.payment-methods.index')); ?>"><span class="nav-symbol">د</span><span>طرق الدفع</span></a>
                     <a class="nav-link <?php echo e(request()->routeIs('admin.deposit-rules.*') ? 'active' : ''); ?>" href="<?php echo e(route('admin.deposit-rules.index')); ?>"><span class="nav-symbol">%</span><span>قواعد العربون</span></a>
@@ -26,9 +26,9 @@
     </aside>
     <section class="admin-main flex-grow-1 min-vh-100">
         <div class="admin-topbar d-flex align-items-center justify-content-between gap-3">
-            <div class="d-flex align-items-center gap-2"><button class="btn btn-ghost btn-sm d-lg-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#adminSidebar" aria-controls="adminSidebar">☰</button><div><div class="fw-bold text-dark"><?php echo e(auth()->user()->isAdmin() ? 'لوحة الإدارة' : 'إدارة الطلبات'); ?></div><small class="text-secondary d-none d-sm-block">مرحبًا <?php echo e(auth()->user()->name); ?></small></div></div>
+            <div class="d-flex align-items-center gap-2"><button class="btn btn-ghost btn-sm d-lg-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#adminSidebar" aria-controls="adminSidebar">☰</button><div><div class="fw-bold text-dark"><?php echo e(auth()->user()->role === 'admin' ? 'لوحة الإدارة' : 'إدارة الطلبات'); ?></div><small class="text-secondary d-none d-sm-block">مرحبًا <?php echo e(auth()->user()->name); ?></small></div></div>
             <div class="admin-search d-none d-md-block flex-grow-1">سلتك • إدارة الطلبات والمدفوعات</div>
-            <div class="user-chip d-flex align-items-center gap-2"><span class="avatar-circle"><?php echo e(mb_substr(auth()->user()->name,0,1)); ?></span><span class="small fw-semibold d-none d-sm-inline"><?php echo e(auth()->user()->name); ?></span></div>
+            <?php echo $__env->make('partials.notification-bell', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><div class="user-chip d-flex align-items-center gap-2"><span class="avatar-circle"><?php echo e(mb_substr(auth()->user()->name,0,1)); ?></span><span class="small fw-semibold d-none d-sm-inline"><?php echo e(auth()->user()->name); ?></span></div><form method="POST" action="<?php echo e(route('logout')); ?>" class="m-0 d-none d-sm-block"><?php echo csrf_field(); ?><button class="btn btn-ghost btn-sm" type="submit">خروج</button></form>
         </div>
         <div class="container-fluid admin-content p-3 p-md-4 p-xl-5"><?php echo $__env->yieldContent('admin-content'); ?></div>
     </section>

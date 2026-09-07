@@ -34,6 +34,32 @@ class CartFlowTest extends TestCase
         $this->assertCount(2, $cart->items);
     }
 
+    public function test_customer_can_save_and_order_item_with_long_shein_name(): void
+    {
+        $user = User::factory()->create();
+        $store = Store::create(['name'=>'SHEIN','slug'=>'shein','domains'=>['shein.com'],'currency'=>'USD','adapter'=>'shein','is_active'=>true]);
+        ExchangeRate::create(['currency'=>'USD','rate_to_lyd'=>7,'is_active'=>true]);
+        $longName = str_repeat('منتج شي إن طويل للاختبار ', 18);
+
+        $response = $this->actingAs($user)->post('/my-carts', [
+            'source_url'=>'https://m.shein.com/ar/cart/share/landing?group_id=123',
+            'store_id'=>$store->id,
+            'source_currency'=>'USD',
+            'import_status'=>'success',
+            'import_message'=>'ok',
+            'items'=>[
+                ['external_id'=>'415154902','name'=>$longName,'quantity'=>1,'unit_price_original'=>3.97],
+            ],
+        ]);
+
+        $response->assertSessionHasNoErrors();
+        $cart = $user->carts()->latest('id')->firstOrFail();
+        $this->assertSame($longName, $cart->items()->firstOrFail()->name);
+
+        $this->actingAs($user)->post(route('orders.from-cart', $cart))->assertRedirect();
+        $this->assertDatabaseHas('order_items', ['name'=>$longName]);
+    }
+
     public function test_user_cannot_open_another_users_cart(): void
     {
         $owner = User::factory()->create();

@@ -10,7 +10,7 @@ class BackofficeMiddleware
 {
     public function handle(Request $request, Closure $next): Response
     {
-        abort_unless($request->user()?->isBackoffice(), 403);
+        abort_unless($request->user() && in_array($request->user()->role, ['admin', 'order_manager'], true), 403);
         return $next($request);
     }
 }

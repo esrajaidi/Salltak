@@ -4,10 +4,13 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\SystemSetting;
+use App\Services\AuditLogger;
 use Illuminate\Http\Request;
 
 class SettingController extends Controller
 {
+    public function __construct(private readonly AuditLogger $audit) {}
+
     public function edit()
     {
         $settings = SystemSetting::query()->pluck('value', 'key');
@@ -25,6 +28,7 @@ class SettingController extends Controller
         foreach ($data as $key => $value) {
             SystemSetting::updateOrCreate(['key' => $key], ['value' => $value]);
         }
+        $this->audit->log('settings.updated', 'تحديث إعدادات النظام', $request->user(), null, null, ['keys'=>array_keys($data)]);
         return back()->with('success', 'تم حفظ الإعدادات.');
     }
 }

@@ -9,32 +9,105 @@ use Illuminate\Validation\ValidationException;
 
 class OrderWorkflowService
 {
-    public function __construct(private readonly DepositCalculator $depositCalculator) {}
+    public function __construct(
+        private readonly DepositCalculator $depositCalculator,
+        private readonly NotificationService $notifications,
+        private readonly AuditLogger $audit,
+    ) {}
 
-    public function transition(Order $order, string $to, ?User $actor = null, ?string $note = null): void
-    {
-        if (!in_array($to, Order::STATUSES, true)) {
+    public function transition(
+        Order $order,
+        string $to,
+        ?User $actor = null,
+        ?string $note = null,
+        string $visibility = 'customer',
+        string $eventType = 'status_changed',
+        array $metadata = [],
+    ): void {
+        if (! in_array($to, Order::STATUSES, true)) {
             throw ValidationException::withMessages(['status' => 'حالة الطلب غير صالحة.']);
+        }
+        if (! in_array($visibility, ['customer', 'internal'], true)) {
+            throw ValidationException::withMessages(['visibility' => 'نوع ظهور الملاحظة غير صالح.']);
         }
         if ($to === 'delivered' && (float) $order->remaining_amount > 0.009) {
             throw ValidationException::withMessages(['status' => 'لا يمكن تسليم الطلب قبل سداد المبلغ المتبقي بالكامل.']);
         }
-        if ($to === 'rejected' && trim((string) $note) === '') {
-            throw ValidationException::withMessages(['reason' => 'سبب رفض الطلب مطلوب.']);
+        if (in_array($to, ['rejected', 'cancelled', 'needs_customer_action'], true) && trim((string) $note) === '') {
+            throw ValidationException::withMessages(['reason' => 'اكتب سبب أو ملاحظة واضحة لهذه الحالة.']);
+        }
+        if (in_array($to, ['rejected', 'cancelled', 'needs_customer_action'], true)) {
+            $visibility = 'customer';
         }
 
         $from = $order->status;
         $payload = ['status' => $to];
         if ($to === 'rejected') $payload['rejection_reason'] = $note;
-        if ($to === 'under_review' && !$order->reviewed_at) $payload['reviewed_at'] = now();
+        if ($to === 'under_review' && ! $order->reviewed_at) $payload['reviewed_at'] = now();
         if ($to === 'delivered') $payload['delivered_at'] = now();
         $order->update($payload);
-        $order->histories()->create([
+
+        $history = $order->histories()->create([
             'user_id' => $actor?->id,
             'from_status' => $from,
             'to_status' => $to,
+            'event_type' => $eventType,
+            'visibility' => $visibility,
             'note' => $note,
+            'metadata' => $metadata ?: null,
         ]);
+
+        $label = $this->statusLabel($to);
+        $this->audit->log(
+            'order.status_changed',
+            'تغيير حالة الطلب إلى '.$label,
+            $actor,
+            $order,
+            $note,
+            array_merge(['from_status' => $from, 'to_status' => $to, 'visibility' => $visibility, 'history_id' => $history->id], $metadata),
+            $order,
+        );
+
+        if ($actor?->role === 'customer') {
+            $this->notifications->notifyBackoffice($order, 'order.customer_activity', 'تحديث من العميل على '.$order->number, $note ?: 'قام العميل بتحديث الطلب.', 'customer');
+        } else {
+            $customerBody = $visibility === 'customer' && $note ? $note : 'الحالة الحالية: '.$label;
+            $this->notifications->notifyCustomer($order, 'order.status_changed', 'تحديث حالة الطلب '.$order->number, $customerBody, 'status', ['status' => $to]);
+        }
+    }
+
+    public function addNote(Order $order, User $actor, string $note, string $visibility = 'internal', array $metadata = []): void
+    {
+        if (! in_array($visibility, ['customer', 'internal'], true)) {
+            throw ValidationException::withMessages(['visibility' => 'نوع ظهور الملاحظة غير صالح.']);
+        }
+        if (trim($note) === '') {
+            throw ValidationException::withMessages(['note' => 'الملاحظة مطلوبة.']);
+        }
+
+        $history = $order->histories()->create([
+            'user_id' => $actor->id,
+            'from_status' => $order->status,
+            'to_status' => $order->status,
+            'event_type' => 'note',
+            'visibility' => $visibility,
+            'note' => $note,
+            'metadata' => $metadata ?: null,
+        ]);
+
+        $this->audit->log(
+            'order.note_added',
+            $visibility === 'internal' ? 'إضافة ملاحظة داخلية' : 'إضافة ملاحظة للعميل',
+            $actor,
+            $order,
+            $note,
+            ['visibility' => $visibility, 'history_id' => $history->id] + $metadata,
+            $order,
+        );
+
+        if ($visibility === 'customer' && $actor->id !== $order->user_id) {
+            $this->notifications->notifyCustomer($order, 'order.note', 'ملاحظة جديدة على '.$order->number, $note, 'note');
+        }
     }
 
     public function recalculateTotal(Order $order): float
@@ -86,5 +159,17 @@ class OrderWorkflowService
         ]);
         $order->refreshPaymentTotals();
         return round($amount, 2);
+    }
+
+    public function statusLabel(string $status): string
+    {
+        return [
+            'submitted'=>'تم الإرسال','under_review'=>'تحت المراجعة','needs_customer_action'=>'يحتاج رد العميل',
+            'approved'=>'معتمد','awaiting_deposit'=>'بانتظار العربون','awaiting_payment'=>'بانتظار الدفع',
+            'deposit_paid'=>'العربون مدفوع','purchasing'=>'جاري الشراء','ordered'=>'تم الطلب من المتجر',
+            'shipped'=>'جاري الشحن','arrived_libya'=>'وصل ليبيا','awaiting_balance'=>'بانتظار باقي المبلغ',
+            'ready_for_delivery'=>'جاهز للتسليم','out_for_delivery'=>'خرج للتسليم','delivered'=>'تم التسليم',
+            'rejected'=>'مرفوض','cancelled'=>'ملغي',
+        ][$status] ?? $status;
     }
 }

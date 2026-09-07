@@ -4,12 +4,15 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Store;
+use App\Services\AuditLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 class StoreController extends Controller
 {
+    public function __construct(private readonly AuditLogger $audit) {}
+
     public function index() { return view('admin.stores.index', ['stores' => Store::latest()->get()]); }
 
     public function store(Request $request)
@@ -22,11 +25,12 @@ class StoreController extends Controller
             'logo_url' => ['nullable', 'url:http,https', 'max:2000'],
             'adapter' => ['required', Rule::in(['generic', 'shein'])],
         ]);
-        Store::create([
+        $store = Store::create([
             'name' => $data['name'], 'slug' => $data['slug'] ?: Str::slug($data['name']),
             'domains' => $this->domains($data['domains_text']), 'currency' => strtoupper($data['currency']),
             'logo_url' => $data['logo_url'] ?? null, 'adapter' => $data['adapter'], 'is_active' => true,
         ]);
+        $this->audit->log('store.created', 'إضافة متجر/موقع', $request->user(), $store, $store->name);
         return back()->with('success', 'تمت إضافة الموقع.');
     }
 
@@ -46,6 +50,7 @@ class StoreController extends Controller
             'currency' => strtoupper($data['currency']), 'logo_url' => $data['logo_url'] ?? null,
             'adapter' => $data['adapter'], 'is_active' => $request->boolean('is_active'),
         ]);
+        $this->audit->log('store.updated', 'تحديث متجر/موقع', $request->user(), $store, $store->name);
         return back()->with('success', 'تم تحديث الموقع.');
     }
 
