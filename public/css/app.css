@@ -351,3 +351,9 @@ h1,h2,h3,h4,h5,h6,.page-heading,.panel-title,.section-title,.marketing-title,.ma
     .js-enabled .reveal{opacity:1!important;transform:none!important}
     .marketing-browser,.marketing-phone,.marketing-device-stage,.marketing-title,.marketing-hero,.admin-content>*{animation:none!important;transform:none!important}
 }
+
+/* V10.12 simplified order review */
+.review-guide{border:1px solid rgba(22,184,166,.22);background:#f1fbf9;border-radius:14px;padding:12px 14px;color:var(--sl-navy)}
+.issue-review-form{background:#fffaf6;border-color:#f3d7bd!important}
+.review-complete-bar{display:flex;align-items:center;justify-content:space-between;gap:16px;border:1px solid rgba(15,39,68,.1);background:linear-gradient(135deg,#f8fcfc,#fff);border-radius:16px;padding:14px 16px}
+@media(max-width:767.98px){.review-complete-bar{align-items:stretch;flex-direction:column}.review-complete-bar .btn{width:100%}}

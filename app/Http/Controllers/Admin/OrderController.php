@@ -42,8 +42,12 @@ class OrderController extends Controller
     {
         $order->load(['user','assignee','cart.store','messages.user','histories.user','payments.method','payments.verifier'])->loadCount('items');
         $itemsPage = $order->items()->with('messages.user')->orderBy('id')->paginate(10, ['*'], 'items_page')->withQueryString();
+        $reviewSummary = [
+            'issues' => $order->items()->whereIn('review_status',['unavailable','price_changed','option_issue','rejected'])->count(),
+            'pending' => $order->items()->where('review_status','pending')->count(),
+        ];
         $managers = User::query()->whereIn('role',['admin','order_manager'])->where('is_active',true)->orderBy('name')->get();
-        return view('admin.orders.show', compact('order','managers','itemsPage'));
+        return view('admin.orders.show', compact('order','managers','itemsPage','reviewSummary'));
     }
 
     public function assign(Request $request, Order $order)
@@ -67,37 +71,137 @@ class OrderController extends Controller
     public function reviewItem(Request $request, Order $order, OrderItem $item)
     {
         abort_unless($item->order_id === $order->id, 404);
+
+        $issueMap = [
+            'unavailable' => ['status' => 'unavailable', 'label' => 'المنتج غير متوفر'],
+            'size_unavailable' => ['status' => 'option_issue', 'label' => 'المقاس غير متوفر'],
+            'color_unavailable' => ['status' => 'option_issue', 'label' => 'اللون غير متوفر'],
+            'price_changed' => ['status' => 'price_changed', 'label' => 'تغير السعر'],
+            'quantity_unavailable' => ['status' => 'option_issue', 'label' => 'الكمية المطلوبة غير متوفرة'],
+            'other' => ['status' => 'option_issue', 'label' => 'مشكلة أخرى'],
+        ];
+
         $data = $request->validate([
-            'review_status'=>['required',Rule::in(['approved','unavailable','price_changed','option_issue','rejected'])],
+            'issue_type'=>['nullable',Rule::in(array_keys($issueMap))],
+            'review_status'=>['nullable',Rule::in(['pending','approved','unavailable','price_changed','option_issue','rejected'])],
             'review_reason'=>['nullable','string','max:1500'],
             'reviewed_unit_price_lyd'=>['nullable','numeric','min:0','max:999999999'],
+        ], [
+            'issue_type.in' => 'نوع المشكلة المحدد غير صالح.',
+            'review_status.in' => 'حالة مراجعة المنتج غير صالحة.',
+            'reviewed_unit_price_lyd.numeric' => 'يجب إدخال السعر الجديد بالأرقام.',
+        ], [
+            'issue_type' => 'نوع المشكلة',
+            'review_status' => 'حالة مراجعة المنتج',
+            'review_reason' => 'تفاصيل المشكلة',
+            'reviewed_unit_price_lyd' => 'السعر الجديد',
         ]);
-        if ($data['review_status'] !== 'approved' && trim((string)($data['review_reason']??'')) === '') {
-            return back()->withErrors(['review_reason'=>'اكتب سبب أو ملاحظة هذا المنتج.']);
+
+        if (empty($data['issue_type']) && empty($data['review_status'])) {
+            return back()->withErrors(['issue_type' => 'اختر نوع المشكلة أولًا.']);
+        }
+
+        if (!empty($data['issue_type'])) {
+            $issueType = $data['issue_type'];
+            $reviewStatus = $issueMap[$issueType]['status'];
+            $detail = trim((string)($data['review_reason'] ?? ''));
+
+            if ($issueType === 'other' && $detail === '') {
+                return back()->withErrors(['review_reason' => 'اكتب تفاصيل المشكلة الأخرى.']);
+            }
+            if ($data['issue_type'] === 'price_changed' && !isset($data['reviewed_unit_price_lyd'])) {
+                return back()->withErrors(['reviewed_unit_price_lyd' => 'أدخل السعر الجديد عند اختيار «تغير السعر».']);
+            }
+
+            $reviewReason = $issueMap[$issueType]['label'].($detail !== '' ? ': '.$detail : '');
+            $reviewedPrice = $issueType === 'price_changed' ? (float)$data['reviewed_unit_price_lyd'] : null;
+        } else {
+            // توافق مع الطلبات والاختبارات السابقة؛ الواجهة الجديدة لا تعرض هذه القائمة.
+            $reviewStatus = $data['review_status'];
+            $reviewReason = trim((string)($data['review_reason'] ?? '')) ?: null;
+            $reviewedPrice = $data['reviewed_unit_price_lyd'] ?? null;
+            if (!in_array($reviewStatus, ['pending','approved'], true) && !$reviewReason) {
+                return back()->withErrors(['review_reason' => 'اكتب سبب أو ملاحظة هذا المنتج.']);
+            }
+            if ($reviewStatus !== 'price_changed') {
+                $reviewedPrice = null;
+            }
         }
 
         $before = ['review_status'=>$item->review_status,'reviewed_unit_price_lyd'=>$item->reviewed_unit_price_lyd];
         $item->update([
-            'review_status'=>$data['review_status'],
-            'review_reason'=>$data['review_reason']??null,
-            'reviewed_unit_price_lyd'=>$data['reviewed_unit_price_lyd']??null,
-            'customer_decision'=>$data['review_status']==='approved'?null:$item->customer_decision,
+            'review_status'=>$reviewStatus,
+            'review_reason'=>in_array($reviewStatus, ['pending','approved'], true) ? null : $reviewReason,
+            'reviewed_unit_price_lyd'=>$reviewedPrice,
+            'customer_decision'=>null,
+            'customer_reply'=>null,
         ]);
 
-        $this->audit->log('order.item_reviewed', 'مراجعة منتج في الطلب', $request->user(), $item, $data['review_reason']??'تم اعتماد المنتج.', ['before'=>$before,'after'=>$data], $order);
-
-        if (in_array($data['review_status'],['unavailable','price_changed','option_issue'],true)) {
-            if ($order->status !== 'needs_customer_action') {
-                $this->workflow->transition($order,'needs_customer_action',$request->user(),'يوجد منتج يحتاج رد العميل: '.$item->name, 'customer', 'status_changed', ['order_item_id'=>$item->id]);
-            } else {
-                $this->notifications->notifyCustomer($order, 'order.item_issue', 'منتج يحتاج ردك في '.$order->number, ($data['review_reason']??'راجع تفاصيل المنتج').' — '.$item->name, 'item', ['order_item_id'=>$item->id]);
-            }
-        } elseif ($order->status === 'submitted') {
-            $this->workflow->transition($order,'under_review',$request->user(),'بدأت مراجعة منتجات الطلب.');
-        }
+        $this->audit->log(
+            'order.item_reviewed',
+            in_array($reviewStatus, ['pending','approved'], true) ? 'إزالة مشكلة من منتج في الطلب' : 'تسجيل مشكلة في منتج بالطلب',
+            $request->user(),
+            $item,
+            $reviewReason ?? 'لم تسجل مشكلة على المنتج.',
+            ['before'=>$before,'after'=>['review_status'=>$reviewStatus,'reviewed_unit_price_lyd'=>$reviewedPrice]],
+            $order
+        );
 
         $this->workflow->recalculateTotal($order);
-        return back()->with('success','تم تحديث مراجعة المنتج.');
+        return back()->with('success', in_array($reviewStatus, ['pending','approved'], true) ? 'تمت إزالة المشكلة من المنتج.' : 'تم تسجيل مشكلة المنتج.');
+    }
+
+    public function completeReview(Request $request, Order $order)
+    {
+        if ($order->review_completed_at) {
+            return back()->with('success', 'تم إنهاء مراجعة الطلب مسبقًا.');
+        }
+
+        $pendingCount = $order->items()->where('review_status','pending')->count();
+        $order->items()->where('review_status','pending')->update(['review_status'=>'approved']);
+        $order->update([
+            'reviewed_at' => $order->reviewed_at ?: now(),
+            'review_completed_at' => now(),
+        ]);
+        $this->workflow->recalculateTotal($order);
+
+        $unresolvedIssues = $order->items()
+            ->whereIn('review_status', ['unavailable','price_changed','option_issue'])
+            ->whereNull('customer_decision')
+            ->count();
+
+        $issueCount = $order->items()
+            ->whereIn('review_status', ['unavailable','price_changed','option_issue','rejected'])
+            ->count();
+
+        $this->audit->log(
+            'order.review_completed',
+            'إنهاء مراجعة الطلب',
+            $request->user(),
+            $order,
+            'تمت مراجعة جميع المنتجات.',
+            ['auto_approved_items'=>$pendingCount,'issues'=>$issueCount,'unresolved_issues'=>$unresolvedIssues],
+            $order
+        );
+
+        if ($unresolvedIssues > 0) {
+            $note = 'تمت مراجعة جميع المنتجات، ويوجد '.$unresolvedIssues.' منتج يحتاج رد العميل.';
+            if ($order->status !== 'needs_customer_action') {
+                $this->workflow->transition($order, 'needs_customer_action', $request->user(), $note, 'customer');
+            } else {
+                $this->workflow->addNote($order, $request->user(), $note, 'customer', ['event'=>'review_completed']);
+            }
+            return back()->with('success', 'اكتملت المراجعة وتم إرسال المنتجات التي بها مشكلة إلى العميل لاتخاذ القرار.');
+        }
+
+        $note = 'تمت مراجعة جميع المنتجات ولا توجد مشكلات تتطلب رد العميل.';
+        if (in_array($order->status, ['submitted','needs_customer_action'], true)) {
+            $this->workflow->transition($order, 'under_review', $request->user(), $note, 'customer');
+        } else {
+            $this->workflow->addNote($order, $request->user(), $note, 'internal', ['event'=>'review_completed']);
+        }
+
+        return back()->with('success', 'اكتملت مراجعة جميع المنتجات. يمكنك الآن اعتماد الطلب وتحديد شروط الدفع.');
     }
 
     public function approve(Request $request, Order $order)
@@ -134,8 +238,13 @@ class OrderController extends Controller
         if (in_array($order->status,['purchasing','ordered','shipped','arrived_libya','ready_for_delivery','out_for_delivery','delivered'],true)) return back()->withErrors(['deposit_mode'=>'لا يمكن تعديل شروط الدفع بعد بدء تنفيذ الطلب.']);
         $amount = $this->workflow->applyPaymentTerms($order,$data['deposit_mode'],isset($data['deposit_value'])?(float)$data['deposit_value']:null,$data['reason']);
         $this->audit->log('order.payment_terms_changed', 'تعديل شروط الدفع', $request->user(), $order, $data['reason'], ['deposit_mode'=>$data['deposit_mode'],'deposit_value'=>$data['deposit_value']??null,'deposit_amount'=>$amount], $order);
-        $target = ((float)$order->paid_amount >= $amount && $amount > 0) ? 'deposit_paid' : ($amount > 0 ? 'awaiting_deposit' : 'awaiting_payment');
-        $this->workflow->transition($order,$target,$request->user(),'تعديل شروط الدفع: '.$data['reason'].' — العربون '.number_format($amount,2).' د.ل');
+        $order->refresh();
+        if ($order->payment_status === 'paid' && (float)$order->remaining_amount <= 0.009) {
+            $this->workflow->syncAfterVerifiedPayment($order, $request->user());
+        } else {
+            $target = ((float)$order->paid_amount >= $amount && $amount > 0) ? 'deposit_paid' : ($amount > 0 ? 'awaiting_deposit' : 'awaiting_payment');
+            $this->workflow->transition($order,$target,$request->user(),'تعديل شروط الدفع: '.$data['reason'].' — العربون '.number_format($amount,2).' د.ل');
+        }
         return back()->with('success','تم تعديل شروط الدفع.');
     }
 
@@ -186,8 +295,8 @@ class OrderController extends Controller
         $order->refresh();
         $this->audit->log('payment.'.$data['decision'], $data['decision']==='verified'?'اعتماد دفعة':'رفض دفعة', $request->user(), $payment, $data['reason']??null, ['amount'=>(float)$payment->amount], $order);
         $this->notifications->notifyCustomer($order, 'payment.'.$data['decision'], $data['decision']==='verified'?'تم اعتماد دفعتك':'تم رفض الدفعة', $data['decision']==='verified'?'تم التحقق من دفعة بقيمة '.number_format((float)$payment->amount,2).' د.ل':($data['reason']??'راجع بيانات الدفع وأعد المحاولة.'), 'payment', ['payment_id'=>$payment->id]);
-        if ($data['decision']==='verified' && $order->status==='awaiting_deposit' && (float)$order->paid_amount + 0.009 >= (float)$order->deposit_amount) {
-            $this->workflow->transition($order,'deposit_paid',$request->user(),'تم التحقق من العربون ويمكن بدء الشراء.');
+        if ($data['decision']==='verified') {
+            $this->workflow->syncAfterVerifiedPayment($order, $request->user());
         }
         return back()->with('success',$data['decision']==='verified'?'تم اعتماد الدفعة.':'تم رفض الدفعة.');
     }

@@ -1,0 +1,40 @@
+SALLTAK - SHEIN IMPORT FIX V10.12.3
+==================================
+
+ROOT CAUSE
+----------
+The same SHEIN shared-cart URL is returning inconsistent upstream responses.
+Working debug: 35 items.
+Failing debug: page loaded, shared-cart BFF network request HTTP 403, explicit BFF HTTP 200 but 0 matched items, final item count 0.
+
+FIX APPLIED
+-----------
+- Automatic retry when Playwright returns status=loaded with 0 items.
+- Retry runs with a fresh temporary Chromium profile.
+- Successful retry is returned to Laravel, so CartController receives the products and the preview can display them.
+- Added retry/BFF diagnostic metadata.
+
+VERIFICATION RUN
+----------------
+[PASS] PHP syntax: SheinBrowserImporter.php
+[PASS] PHP syntax: SheinShareAdapter.php
+[PASS] PHP syntax: CartController.php
+[PASS] Regression: empty loaded response -> retry -> successful products
+[PASS] SHEIN Node tests: 10/10
+[PASS] Static Node tests: 26/26
+[PASS] Worker JavaScript syntax check
+[PASS] Laravel route boot/list (69 lines of route output)
+
+ENVIRONMENT LIMITATIONS IN THIS SANDBOX
+---------------------------------------
+- Full PHPUnit suite cannot start because this PHP CLI image does not include DOM, mbstring and xmlwriter extensions.
+- Live SHEIN browser re-fetch cannot be completed here because the sandbox cannot resolve/download Playwright Chromium from the public CDN. The supplied live debug data was used to confirm the upstream 403/empty-response pattern.
+
+LOCAL COMMANDS TO RUN AFTER EXTRACTING
+--------------------------------------
+php artisan optimize:clear
+npm run browser:smoke
+php tests/Architecture/shein_browser_retry_check.php
+node --test tests/Node/*.test.mjs
+
+Then test the same SHEIN shared-cart URL from the website.

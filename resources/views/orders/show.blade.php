@@ -3,8 +3,8 @@
 @section('body')
 @php
 $statusLabels = [
-'submitted'=>'تم الإرسال','under_review'=>'تحت المراجعة','needs_customer_action'=>'يحتاج ردك','approved'=>'معتمد','awaiting_deposit'=>'بانتظار العربون','awaiting_payment'=>'بانتظار الدفع','deposit_paid'=>'العربون مدفوع','purchasing'=>'جاري الشراء','ordered'=>'تم الطلب من المتجر','shipped'=>'جاري الشحن','arrived_libya'=>'وصل ليبيا','awaiting_balance'=>'بانتظار باقي المبلغ','ready_for_delivery'=>'جاهز للتسليم','out_for_delivery'=>'خرج للتسليم','delivered'=>'تم التسليم','rejected'=>'مرفوض','cancelled'=>'ملغي'];
-$itemLabels=['pending'=>'بانتظار المراجعة','approved'=>'تمام','unavailable'=>'غير متوفر','price_changed'=>'السعر تغير','option_issue'=>'مشكلة لون/مقاس','rejected'=>'مرفوض'];
+'submitted'=>'تم الإرسال','under_review'=>'تحت المراجعة','needs_customer_action'=>'يحتاج ردك','approved'=>'معتمد','awaiting_deposit'=>'بانتظار العربون','awaiting_payment'=>'بانتظار الدفع','deposit_paid'=>'العربون مدفوع','ready_for_purchase'=>'جاهز للشراء','purchasing'=>'جاري الشراء','ordered'=>'تم الطلب من المتجر','shipped'=>'جاري الشحن','arrived_libya'=>'وصل ليبيا','awaiting_balance'=>'بانتظار باقي المبلغ','ready_for_delivery'=>'جاهز للتسليم','out_for_delivery'=>'خرج للتسليم','delivered'=>'تم التسليم','rejected'=>'مرفوض','cancelled'=>'ملغي'];
+$itemLabels=['pending'=>'بانتظار المراجعة','approved'=>'تمام','unavailable'=>'غير متوفر','price_changed'=>'السعر تغير','option_issue'=>'مشكلة في المنتج','rejected'=>'مرفوض'];
 $paymentLabels=['unpaid'=>'غير مدفوع','pending'=>'بانتظار التحقق','deposit_paid'=>'العربون مدفوع','partial'=>'مدفوع جزئيًا','paid'=>'مدفوع بالكامل','failed'=>'فشل','refunded'=>'مسترد'];
 $canPay=in_array($order->status,['awaiting_deposit','awaiting_payment','deposit_paid','arrived_libya','awaiting_balance','ready_for_delivery','out_for_delivery'],true) && (float)$order->remaining_amount>0;
 $depositDue=max(0,(float)$order->deposit_amount-(float)$order->paid_amount);
@@ -18,7 +18,7 @@ $progressSteps=[
  ['key'=>'arrived_libya','label'=>'وصل ليبيا','icon'=>'7'],
  ['key'=>'delivered','label'=>'التسليم','icon'=>'8'],
 ];
-$statusRank=['submitted'=>0,'under_review'=>1,'needs_customer_action'=>1,'approved'=>2,'awaiting_deposit'=>3,'awaiting_payment'=>3,'deposit_paid'=>3,'purchasing'=>4,'ordered'=>4,'shipped'=>5,'arrived_libya'=>6,'awaiting_balance'=>6,'ready_for_delivery'=>6,'out_for_delivery'=>7,'delivered'=>7,'rejected'=>0,'cancelled'=>0];
+$statusRank=['submitted'=>0,'under_review'=>1,'needs_customer_action'=>1,'approved'=>2,'awaiting_deposit'=>3,'awaiting_payment'=>3,'deposit_paid'=>3,'ready_for_purchase'=>4,'purchasing'=>4,'ordered'=>4,'shipped'=>5,'arrived_libya'=>6,'awaiting_balance'=>6,'ready_for_delivery'=>6,'out_for_delivery'=>7,'delivered'=>7,'rejected'=>0,'cancelled'=>0];
 $currentRank=$statusRank[$order->status] ?? 0;
 $cancelStatuses = ['submitted','under_review','needs_customer_action','approved','awaiting_deposit','awaiting_payment','deposit_paid'];
 $paidAmountForCancel = max(0, (float) $order->paid_amount);

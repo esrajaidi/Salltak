@@ -6,6 +6,7 @@ use App\Models\Cart;
 use App\Models\DepositRule;
 use App\Models\ExchangeRate;
 use App\Models\Order;
+use App\Models\Payment;
 use App\Models\PaymentMethod;
 use App\Models\Store;
 use App\Models\User;
@@ -143,6 +144,82 @@ class OrderPaymentWorkflowTest extends TestCase
         $this->actingAs($user)->delete(route('carts.destroy',$cart))
             ->assertSessionHasErrors('cart');
         $this->assertDatabaseHas('carts',['id'=>$cart->id]);
+    }
+
+    public function test_saved_payment_terms_remain_selected_and_populated_after_reload(): void
+    {
+        $admin = User::factory()->create(['role'=>'admin', 'is_active'=>true]);
+        $customer = User::factory()->create(['role'=>'customer']);
+        $order = Order::create([
+            'user_id'=>$customer->id,
+            'status'=>'under_review',
+            'payment_status'=>'unpaid',
+            'subtotal_lyd'=>100,
+            'total_lyd'=>100,
+            'deposit_amount'=>0,
+            'paid_amount'=>0,
+            'remaining_amount'=>100,
+            'review_completed_at'=>now(),
+        ]);
+        $order->items()->create([
+            'name'=>'Reviewed item', 'quantity'=>1, 'unit_price_original'=>10,
+            'unit_price_lyd'=>100, 'line_total_lyd'=>100, 'currency'=>'USD', 'review_status'=>'approved',
+        ]);
+
+        $this->actingAs($admin)->post(route('admin.orders.approve', $order), [
+            'deposit_mode'=>'none',
+            'payment_terms_note'=>'الدفع الكامل قبل الشراء.',
+        ])->assertSessionHasNoErrors();
+
+        $order->refresh();
+        $this->assertSame('none', $order->deposit_type);
+        $this->assertSame('0.00', $order->deposit_value);
+
+        $this->actingAs($admin)
+            ->get(route('admin.orders.show', $order))
+            ->assertOk()
+            ->assertSee('value="none" selected', false)
+            ->assertSee('الدفع الكامل قبل الشراء.');
+    }
+
+    public function test_verifying_full_payment_moves_pre_purchase_order_to_ready_for_purchase(): void
+    {
+        $admin = User::factory()->create(['role'=>'admin', 'is_active'=>true]);
+        $customer = User::factory()->create(['role'=>'customer']);
+        $order = Order::create([
+            'user_id'=>$customer->id,
+            'status'=>'awaiting_payment',
+            'payment_status'=>'unpaid',
+            'subtotal_lyd'=>100,
+            'total_lyd'=>100,
+            'deposit_required'=>false,
+            'deposit_type'=>'none',
+            'deposit_value'=>0,
+            'deposit_amount'=>0,
+            'paid_amount'=>0,
+            'remaining_amount'=>100,
+        ]);
+        $method = PaymentMethod::create([
+            'code'=>'full_payment_test','name'=>'Full Payment Test','type'=>'cash','is_active'=>true,'sort_order'=>1,
+            'fee_type'=>'none','fee_value'=>0,'config'=>['integration_mode'=>'manual_verification','proof_mode'=>'none'],
+        ]);
+        $payment = Payment::create([
+            'order_id'=>$order->id,
+            'payment_method_id'=>$method->id,
+            'user_id'=>$customer->id,
+            'amount'=>100,
+            'fee_amount'=>0,
+            'status'=>'pending_verification',
+        ]);
+
+        $this->actingAs($admin)->patch(route('admin.orders.payments.verify', [$order, $payment]), [
+            'decision'=>'verified',
+        ])->assertSessionHasNoErrors();
+
+        $order->refresh();
+        $this->assertSame('paid', $order->payment_status);
+        $this->assertSame('0.00', $order->remaining_amount);
+        $this->assertSame('ready_for_purchase', $order->status);
     }
 
 }

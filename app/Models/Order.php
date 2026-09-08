@@ -12,14 +12,14 @@ class Order extends Model
 
     public const STATUSES = [
         'submitted', 'under_review', 'needs_customer_action', 'approved', 'awaiting_deposit',
-        'awaiting_payment', 'deposit_paid', 'purchasing', 'ordered', 'shipped', 'arrived_libya',
+        'awaiting_payment', 'deposit_paid', 'ready_for_purchase', 'purchasing', 'ordered', 'shipped', 'arrived_libya',
         'awaiting_balance', 'ready_for_delivery', 'out_for_delivery', 'delivered', 'rejected', 'cancelled',
     ];
 
     protected $fillable = [
         'number','user_id','cart_id','assigned_to','status','payment_status','subtotal_lyd','total_lyd',
         'deposit_required','deposit_type','deposit_value','deposit_amount','paid_amount','remaining_amount',
-        'payment_terms_note','rejection_reason','submitted_at','reviewed_at','approved_at','delivered_at',
+        'payment_terms_note','rejection_reason','submitted_at','reviewed_at','review_completed_at','approved_at','delivered_at',
     ];
 
     protected function casts(): array
@@ -28,7 +28,7 @@ class Order extends Model
             'deposit_required' => 'boolean',
             'subtotal_lyd' => 'decimal:2', 'total_lyd' => 'decimal:2', 'deposit_value' => 'decimal:2',
             'deposit_amount' => 'decimal:2', 'paid_amount' => 'decimal:2', 'remaining_amount' => 'decimal:2',
-            'submitted_at' => 'datetime', 'reviewed_at' => 'datetime', 'approved_at' => 'datetime', 'delivered_at' => 'datetime',
+            'submitted_at' => 'datetime', 'reviewed_at' => 'datetime', 'review_completed_at' => 'datetime', 'approved_at' => 'datetime', 'delivered_at' => 'datetime',
         ];
     }
 

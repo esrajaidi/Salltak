@@ -179,12 +179,41 @@ class OrderWorkflowService
         return round($amount, 2);
     }
 
+    public function syncAfterVerifiedPayment(Order $order, ?User $actor = null): void
+    {
+        $order->refreshPaymentTotals();
+        $order->refresh();
+
+        $prePurchaseStatuses = ['approved', 'awaiting_deposit', 'awaiting_payment', 'deposit_paid'];
+        $isFullyPaid = $order->payment_status === 'paid'
+            && (float) $order->total_lyd > 0
+            && (float) $order->remaining_amount <= 0.009;
+
+        if ($isFullyPaid && in_array($order->status, $prePurchaseStatuses, true)) {
+            $this->transition(
+                $order,
+                'ready_for_purchase',
+                $actor,
+                'تم سداد الطلب بالكامل وأصبح جاهزًا للشراء.'
+            );
+            return;
+        }
+
+        if (
+            $order->status === 'awaiting_deposit'
+            && (float) $order->deposit_amount > 0
+            && (float) $order->paid_amount + 0.009 >= (float) $order->deposit_amount
+        ) {
+            $this->transition($order, 'deposit_paid', $actor, 'تم التحقق من العربون ويمكن متابعة الدفع أو بدء إجراءات الشراء.');
+        }
+    }
+
     public function statusLabel(string $status): string
     {
         return [
             'submitted'=>'تم الإرسال','under_review'=>'تحت المراجعة','needs_customer_action'=>'يحتاج رد العميل',
             'approved'=>'معتمد','awaiting_deposit'=>'بانتظار العربون','awaiting_payment'=>'بانتظار الدفع',
-            'deposit_paid'=>'العربون مدفوع','purchasing'=>'جاري الشراء','ordered'=>'تم الطلب من المتجر',
+            'deposit_paid'=>'العربون مدفوع','ready_for_purchase'=>'جاهز للشراء','purchasing'=>'جاري الشراء','ordered'=>'تم الطلب من المتجر',
             'shipped'=>'جاري الشحن','arrived_libya'=>'وصل ليبيا','awaiting_balance'=>'بانتظار باقي المبلغ',
             'ready_for_delivery'=>'جاهز للتسليم','out_for_delivery'=>'خرج للتسليم','delivered'=>'تم التسليم',
             'rejected'=>'مرفوض','cancelled'=>'ملغي',
