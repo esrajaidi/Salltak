@@ -71,6 +71,7 @@ class CartController extends Controller
             'created_at' => now()->timestamp,
         ]);
 
+        dd($result);
         return view('carts.preview', [
             'sourceUrl' => $data['source_url'],
             'store' => $store,
