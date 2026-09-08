@@ -83,6 +83,10 @@ class SheinShareAdapter implements CartSourceAdapter
                     'browser_network_item_count' => (int) ($browser['meta']['network_item_count'] ?? 0),
                     'browser_state_item_count' => (int) ($browser['meta']['state_item_count'] ?? 0),
                     'browser_final_item_count' => (int) ($browser['meta']['final_item_count'] ?? count($browserItems)),
+                    'browser_direct_bff_status' => $browser['meta']['direct_bff_status'] ?? null,
+                    'browser_direct_bff_matched_items' => (int) ($browser['meta']['direct_bff_matched_items'] ?? 0),
+                    'browser_import_attempt_count' => (int) ($browser['meta']['import_attempt_count'] ?? 1),
+                    'browser_fresh_profile_retry' => (bool) ($browser['meta']['fresh_profile_retry'] ?? false),
                 ])
             );
         }
@@ -99,6 +103,11 @@ class SheinShareAdapter implements CartSourceAdapter
             'browser_network_item_count' => (int) ($browser['meta']['network_item_count'] ?? 0),
             'browser_state_item_count' => (int) ($browser['meta']['state_item_count'] ?? 0),
             'browser_final_item_count' => (int) ($browser['meta']['final_item_count'] ?? 0),
+            'browser_direct_bff_status' => $browser['meta']['direct_bff_status'] ?? null,
+            'browser_direct_bff_matched_items' => (int) ($browser['meta']['direct_bff_matched_items'] ?? 0),
+            'browser_import_attempt_count' => (int) ($browser['meta']['import_attempt_count'] ?? 1),
+            'browser_fresh_profile_retry' => (bool) ($browser['meta']['fresh_profile_retry'] ?? false),
+            'browser_retry_status' => $browser['meta']['retry_status'] ?? null,
         ]);
 
         if ($browserStatus === 'challenge') {

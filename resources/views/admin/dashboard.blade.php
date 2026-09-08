@@ -2,7 +2,7 @@
 @section('title','لوحة الإدارة')
 @section('admin-content')
 @php
-$statusLabels=['submitted'=>'جديد','under_review'=>'تحت المراجعة','needs_customer_action'=>'يحتاج رد العميل','approved'=>'معتمد','awaiting_deposit'=>'بانتظار العربون','awaiting_payment'=>'بانتظار الدفع','deposit_paid'=>'العربون مدفوع','purchasing'=>'جاري الشراء','ordered'=>'تم الطلب','shipped'=>'الشحن','arrived_libya'=>'وصل ليبيا','awaiting_balance'=>'باقي المبلغ','ready_for_delivery'=>'جاهز للتسليم','out_for_delivery'=>'خارج للتسليم','delivered'=>'تم التسليم','rejected'=>'مرفوض','cancelled'=>'ملغي'];
+$statusLabels=['submitted'=>'جديد','under_review'=>'تحت المراجعة','needs_customer_action'=>'يحتاج رد العميل','approved'=>'معتمد','awaiting_deposit'=>'بانتظار العربون','awaiting_payment'=>'بانتظار الدفع','deposit_paid'=>'العربون مدفوع','ready_for_purchase'=>'جاهز للشراء','purchasing'=>'جاري الشراء','ordered'=>'تم الطلب','shipped'=>'الشحن','arrived_libya'=>'وصل ليبيا','awaiting_balance'=>'باقي المبلغ','ready_for_delivery'=>'جاهز للتسليم','out_for_delivery'=>'خارج للتسليم','delivered'=>'تم التسليم','rejected'=>'مرفوض','cancelled'=>'ملغي'];
 @endphp
 <div class="dashboard-command-center">
     <header class="dashboard-welcome dashboard-hero mb-4">

@@ -1,0 +1,55 @@
+SALLTAK V10.13 - RUN / QA RESULT
+Date: 2026-09-08
+
+Scope:
+1. Persist completed order review and hide the review-complete action after completion.
+2. Persist and re-select saved deposit/payment-term choices in admin UI.
+3. Automatically move fully-paid pre-purchase orders to ready_for_purchase.
+4. Reconcile already fully-paid pre-purchase orders during migration.
+
+Verification completed in this environment:
+
+[PASS] PHP syntax
+- app/Models/Order.php
+- app/Http/Controllers/Admin/OrderController.php
+- app/Http/Controllers/Admin/DashboardController.php
+- app/Services/OrderWorkflowService.php
+- database/migrations/2026_09_08_120000_add_review_completed_at_to_orders_table.php
+- tests/Feature/OrderReviewWorkflowTest.php
+- tests/Feature/OrderPaymentWorkflowTest.php
+
+[PASS] Laravel admin order routes
+- 11 admin.orders routes loaded successfully.
+
+[PASS] Blade compilation/syntax
+Compiled and syntax-checked:
+- resources/views/admin/orders/show.blade.php
+- resources/views/orders/show.blade.php
+- resources/views/admin/orders/index.blade.php
+- resources/views/admin/dashboard.blade.php
+- resources/views/orders/index.blade.php
+
+[PASS] Static regression suite
+- 27/27 static test files passed.
+- Includes new order-ops-persistence-v1013 regression checks.
+
+[PASS] SHEIN Node regression suite
+- 10/10 Node tests passed.
+- Existing SHEIN import logic was not modified by V10.13.
+
+[PASS] Browser worker JavaScript syntax
+- npm run browser:check
+
+[ENVIRONMENT LIMITATION] Full Laravel PHPUnit runtime suite
+The container PHP build does not include DOM, mbstring, and xmlwriter extensions required by PHPUnit, so php artisan test cannot execute here. New Feature tests were added and PHP syntax-checked, but must be executed in the normal Laragon/server PHP environment.
+
+[ENVIRONMENT LIMITATION] Playwright Chromium smoke
+The Playwright Chromium executable is not installed in this container cache, so browser:smoke cannot launch here. The worker syntax and all SHEIN Node regression tests pass. The previous V10.12.3 SHEIN retry fix remains unchanged.
+
+Required after installing this version over an existing database:
+1. php artisan migrate
+2. php artisan optimize:clear
+
+Expected behavior after migration:
+- Previously completed reviews with audit history get review_completed_at backfilled.
+- Previously fully-paid orders with zero remaining balance and a pre-purchase status are moved to ready_for_purchase.

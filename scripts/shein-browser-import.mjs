@@ -69,6 +69,30 @@ function currencyFromUrl(raw) {
   }
 }
 
+function shareApiRequestFromUrl(raw) {
+  try {
+    const url = new URL(raw);
+    const groupId = String(url.searchParams.get('group_id') || '').trim();
+    if (!groupId || !isSheinUrl(url.href)) return null;
+
+    const localCountry = String(url.searchParams.get('local_country') || '').trim().toUpperCase();
+    const firstSegment = url.pathname.split('/').filter(Boolean)[0] || 'ar';
+    const locale = /^[a-z]{2}(?:-[a-z]{2})?$/i.test(firstSegment) ? firstSegment : 'ar';
+    const language = locale.split('-')[0].toLowerCase();
+
+    return {
+      endpoint: `${url.origin}/${locale}/bff-api/order/cart/share/landing?_ver=1.1.8&_lang=${encodeURIComponent(language)}`,
+      body: {
+        groupId,
+        localCountry,
+        userLocalSizeCountry: '',
+      },
+    };
+  } catch {
+    return null;
+  }
+}
+
 function scalar(value) {
   if (value === null || value === undefined) return '';
   if (['string', 'number', 'boolean'].includes(typeof value)) return String(value).trim();
@@ -272,7 +296,9 @@ function candidateFromNode(node, pathParts, baseUrl, fallbackCurrency) {
   ]);
   const usdPrice = findUsdAmount(priceValue);
   const explicitCurrency = findCurrency(priceValue, '').toUpperCase();
-  const price = usdPrice > 0 ? usdPrice : (explicitCurrency === 'USD' ? findAmount(priceValue) : 0);
+  const localPrice = findAmount(priceValue);
+  const price = usdPrice > 0 ? usdPrice : localPrice;
+  const priceCurrency = usdPrice > 0 ? 'USD' : (explicitCurrency || fallbackCurrency || 'USD').toUpperCase();
   if ((!name && !externalId) || price <= 0) return null;
 
   const pathText = pathParts.join('.').toLowerCase();
@@ -317,7 +343,7 @@ function candidateFromNode(node, pathParts, baseUrl, fallbackCurrency) {
     size,
     quantity: Math.max(1, Number(qtyRaw || 1) || 1),
     unit_price_original: price,
-    currency: 'USD',
+    currency: priceCurrency,
   };
 }
 
@@ -424,7 +450,7 @@ if (!allowedMainUrl(targetUrl)) {
   const payloadKeys = new Set();
   const responseMeta = [];
   const networkItems = [];
-  const fallbackCurrency = 'USD';
+  const fallbackCurrency = currencyFromUrl(targetUrl);
 
   try {
     context = await chromium.launchPersistentContext(profileDir, {
@@ -512,6 +538,66 @@ if (!allowedMainUrl(targetUrl)) {
           try { await page.waitForTimeout(1800); } catch {}
           break;
         }
+      }
+    }
+
+    // Ask the same shared-cart BFF endpoint explicitly from inside the live SHEIN
+    // browser session. The storefront does not always hydrate/fire this request on its
+    // own anymore, so waiting only for page network traffic can incorrectly return 0 items.
+    const shareRequest = shareApiRequestFromUrl(targetUrl);
+    let directBffStatus = null;
+    let directBffMatchedItems = 0;
+    if (shareRequest) {
+      const direct = await page.evaluate(async (request) => {
+        try {
+          const response = await fetch(request.endpoint, {
+            method: 'POST',
+            credentials: 'include',
+            headers: {
+              'accept': 'application/json, text/plain, */*',
+              'content-type': 'application/json;charset=UTF-8',
+            },
+            body: JSON.stringify(request.body),
+          });
+          return {
+            status: response.status,
+            contentType: response.headers.get('content-type') || '',
+            text: await response.text(),
+          };
+        } catch (error) {
+          return { status: 0, contentType: '', text: '', error: String(error?.message || error || '') };
+        }
+      }, shareRequest).catch(() => ({ status: 0, contentType: '', text: '' }));
+
+      directBffStatus = Number(direct?.status || 0) || null;
+      const directText = String(direct?.text || '');
+      if (directText && directText.length <= MAX_PAYLOAD_BYTES) {
+        try {
+          const decoded = JSON.parse(directText);
+          if (decoded && typeof decoded === 'object') {
+            const found = extractItemsFromPayload(
+              decoded,
+              targetUrl,
+              fallbackCurrency,
+              ['cart_response', 'cart_share_landing'],
+            );
+            directBffMatchedItems = found.length;
+            if (found.length) networkItems.push(...found);
+            if ((debug || found.length) && payloads.length < MAX_PAYLOADS) payloads.push(decoded);
+            responseMeta.push({
+              url: shareRequest.endpoint,
+              status: directBffStatus,
+              method: 'POST',
+              post_data: JSON.stringify(shareRequest.body),
+              content_type: String(direct?.contentType || ''),
+              body_bytes: directText.length,
+              top_keys: !Array.isArray(decoded) ? Object.keys(decoded).slice(0, 30) : [],
+              matched_items: found.length,
+              is_share_landing: true,
+              direct_bff: true,
+            });
+          }
+        } catch {}
       }
     }
 
@@ -640,6 +726,8 @@ if (!allowedMainUrl(targetUrl)) {
         state_item_count: dedupe(stateItems).length,
         dom_item_count: dedupe(domItems || []).length,
         final_item_count: items.length,
+        direct_bff_status: directBffStatus,
+        direct_bff_matched_items: directBffMatchedItems,
       }
     });
   } catch (error) {

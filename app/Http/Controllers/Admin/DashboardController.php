@@ -15,7 +15,7 @@ class DashboardController extends Controller
 {
     public function __invoke()
     {
-        $attentionStatuses = ['submitted','under_review','needs_customer_action','awaiting_deposit','awaiting_payment','awaiting_balance'];
+        $attentionStatuses = ['submitted','under_review','needs_customer_action','awaiting_deposit','awaiting_payment','ready_for_purchase','awaiting_balance'];
 
         $stats = [
             'users' => User::query()->where('role', 'customer')->count(),
@@ -29,7 +29,7 @@ class DashboardController extends Controller
         ];
 
         $needsAction = Order::with(['user','assignee','cart.store'])
-            ->whereIn('status',['submitted','needs_customer_action','awaiting_deposit','awaiting_payment','awaiting_balance'])
+            ->whereIn('status',['submitted','needs_customer_action','awaiting_deposit','awaiting_payment','ready_for_purchase','awaiting_balance'])
             ->latest()->limit(6)->get();
 
         $pendingPayments = Payment::with(['order.user','method'])

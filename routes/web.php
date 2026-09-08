@@ -57,6 +57,7 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'backoffice'])->grou
     Route::get('/orders/{order}', [AdminOrderController::class, 'show'])->name('orders.show');
     Route::patch('/orders/{order}/assign', [AdminOrderController::class, 'assign'])->name('orders.assign');
     Route::patch('/orders/{order}/items/{item}/review', [AdminOrderController::class, 'reviewItem'])->name('orders.items.review');
+    Route::post('/orders/{order}/review/complete', [AdminOrderController::class, 'completeReview'])->name('orders.review.complete');
     Route::post('/orders/{order}/approve', [AdminOrderController::class, 'approve'])->name('orders.approve');
     Route::patch('/orders/{order}/payment-terms', [AdminOrderController::class, 'updatePaymentTerms'])->name('orders.payment-terms');
     Route::patch('/orders/{order}/status', [AdminOrderController::class, 'updateStatus'])->name('orders.status');

@@ -517,3 +517,7 @@ php artisan db:seed --class=Database\\Seeders\\DemoPaymentMethodsSeeder
 php artisan optimize:clear
 php artisan test
 ```
+
+
+## آخر تحديث — V10.12
+راجع `SALLTAK_V10_12_NOTES.md` لتفاصيل شاشة مراجعة الطلب المبسطة.
