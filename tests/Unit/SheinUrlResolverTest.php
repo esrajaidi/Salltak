@@ -11,6 +11,7 @@ class SheinUrlResolverTest extends TestCase
 {
     public function test_direct_shein_share_link_is_left_unchanged(): void
     {
+        Http::fake();
         $url = 'https://m.shein.com/ar/cart/share/landing?group_id=851956795&local_country=AE&cart_share=1';
 
         $resolved = (new SheinUrlResolver(new StoreUrlClassifier()))->resolve($url);
