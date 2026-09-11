@@ -13,11 +13,13 @@
     <link rel="stylesheet" href="{{ asset('vendor/bootstrap/bootstrap.min.css') }}">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/css/bootstrap.rtl.min.css">
     <link rel="stylesheet" href="{{ asset('css/app.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/mobile-bottom-nav.css') }}">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="{{ asset('js/app-ui.js') }}" defer></script>
     @stack('styles')
 </head>
-<body>
+@php($showMobileCustomerNav = auth()->check() && !in_array(auth()->user()->role, ['admin','order_manager'], true))
+<body class="{{ $showMobileCustomerNav ? 'has-mobile-bottom-nav' : '' }}">
 @unless(request()->routeIs('admin.*') && !request()->routeIs('admin.site-content.preview'))
 <nav class="navbar navbar-expand-lg app-navbar sticky-top" aria-label="التنقل الرئيسي">
     <div class="container">
@@ -71,6 +73,64 @@
 <div id="swal-flash" data-swal-success="{{ session('success') }}" data-swal-errors="{{ json_encode($errors->all(), JSON_UNESCAPED_UNICODE) }}" hidden></div>
 
 <main>@yield('body')</main>
+
+@if($showMobileCustomerNav)
+<nav class="mobile-bottom-nav d-lg-none" aria-label="التنقل السريع للموبايل">
+    <a class="mobile-bottom-nav__item {{ request()->routeIs('home') ? 'active' : '' }}" href="{{ route('home') }}">
+        <x-icon name="home" size="21"/>
+        <span>الرئيسية</span>
+    </a>
+    <a class="mobile-bottom-nav__item {{ request()->routeIs('carts.create','carts.preview') ? 'active' : '' }}" href="{{ route('carts.create') }}">
+        <x-icon name="plus" size="21"/>
+        <span>سلة جديدة</span>
+    </a>
+    <a class="mobile-bottom-nav__item {{ request()->routeIs('carts.index','carts.show') ? 'active' : '' }}" href="{{ route('carts.index') }}">
+        <x-icon name="carts" size="21"/>
+        <span>سلاتي</span>
+    </a>
+    <a class="mobile-bottom-nav__item {{ request()->routeIs('orders.*') ? 'active' : '' }}" href="{{ route('orders.index') }}">
+        <x-icon name="orders" size="21"/>
+        <span>طلباتي</span>
+    </a>
+    <button class="mobile-bottom-nav__item" type="button" data-bs-toggle="modal" data-bs-target="#mobileAccountModal" aria-label="فتح حسابي">
+        <x-icon name="users" size="21"/>
+        <span>حسابي</span>
+    </button>
+</nav>
+
+<div class="modal fade mobile-account-modal" id="mobileAccountModal" tabindex="-1" aria-labelledby="mobileAccountModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header border-0 pb-1">
+                <div>
+                    <div class="small text-muted">حسابك في سلتك</div>
+                    <h2 class="modal-title fs-5 fw-bold" id="mobileAccountModalLabel">{{ auth()->user()->name }}</h2>
+                </div>
+                <button type="button" class="btn-close ms-0" data-bs-dismiss="modal" aria-label="إغلاق"></button>
+            </div>
+            <div class="modal-body pt-2">
+                <div class="surface-card p-3 mb-3">
+                    <div class="small text-muted mb-1">البريد الإلكتروني</div>
+                    <div class="fw-semibold text-break">{{ auth()->user()->email }}</div>
+                </div>
+                <div class="d-grid gap-2">
+                    <a class="btn btn-ghost" href="{{ route('notifications.index') }}">
+                        <x-icon name="bell" size="18"/>
+                        الإشعارات
+                    </a>
+                    <form method="POST" action="{{ route('logout') }}" class="m-0">
+                        @csrf
+                        <button class="btn btn-danger-soft w-100" type="submit">
+                            <x-icon name="logout" size="18"/>
+                            تسجيل الخروج
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+@endif
 
 @unless(request()->routeIs('admin.*') && !request()->routeIs('admin.site-content.preview'))
 @php($footer = $siteFooter ?? [])
