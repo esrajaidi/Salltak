@@ -11,6 +11,7 @@ class CartImportService
 {
     public function __construct(
         private readonly StoreUrlClassifier $classifier,
+        private readonly SheinUrlResolver $sheinUrlResolver,
         private readonly SheinShareAdapter $shein,
         private readonly GenericProductAdapter $generic,
     ) {}
@@ -25,10 +26,18 @@ class CartImportService
 
     public function import(string $url): array
     {
-        $store = $this->detectStore($url);
-        $adapter = $this->shein->canHandle($url, $store) ? $this->shein : $this->generic;
-        $result = $adapter->import($url, $store);
+        $sourceUrl = $url;
+        $resolvedUrl = $this->sheinUrlResolver->resolve($sourceUrl);
 
-        return ['store' => $store, 'result' => $result];
+        $store = $this->detectStore($resolvedUrl) ?? $this->detectStore($sourceUrl);
+        $adapter = $this->shein->canHandle($resolvedUrl, $store) ? $this->shein : $this->generic;
+        $result = $adapter->import($resolvedUrl, $store);
+
+        return [
+            'store' => $store,
+            'result' => $result,
+            'source_url' => $sourceUrl,
+            'resolved_url' => $resolvedUrl,
+        ];
     }
 }
