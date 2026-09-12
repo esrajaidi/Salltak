@@ -67,7 +67,6 @@
         });
     };
 
-
     const cartImportLoading = () => {
         const forms = document.querySelectorAll('form[data-cart-import]');
         const overlay = document.getElementById('cart-import-overlay');
@@ -80,22 +79,35 @@
             ['نتحقق من الصور والمقاسات والألوان','نرتب تفاصيل كل منتج بدون ما نغيّر السعر المستورد.'],
             ['قربنا نكمل... يتم تجهيز السلة للعرض','باقي خطوة بسيطة وتظهر لك السلة كاملة.'],
         ];
-        forms.forEach(form => form.addEventListener('submit', () => {
+
+        forms.forEach(form => form.addEventListener('submit', (event) => {
+            if (form.dataset.importSubmitting === '1') return;
+            event.preventDefault();
+            form.dataset.importSubmitting = '1';
+
             const button = form.querySelector('button[type="submit"]');
             if (button) {
                 button.disabled = true;
                 button.querySelector('.submit-label')?.replaceChildren(document.createTextNode('جاري الجلب...'));
                 button.querySelector('.spinner-border')?.classList.remove('d-none');
             }
+
             overlay.classList.add('is-open');
             overlay.setAttribute('aria-hidden','false');
             document.body.classList.add('is-importing-cart');
+
             let index = 0;
             window.setInterval(() => {
                 index = (index + 1) % messages.length;
                 if (title) title.textContent = messages[index][0];
                 if (message) message.textContent = messages[index][1];
             }, 2400);
+
+            // Safari on iPhone can navigate before painting the overlay. Give it
+            // two animation frames so the loading modal is visible first.
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => form.submit());
+            });
         }));
     };
 
