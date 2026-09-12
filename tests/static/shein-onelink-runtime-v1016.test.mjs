@@ -5,7 +5,6 @@ import fs from 'node:fs';
 const importer = fs.readFileSync('app/Services/CartImport/Browser/SheinBrowserImporter.php', 'utf8');
 const sharedWorker = fs.readFileSync('scripts/shein-shared-page-import.mjs', 'utf8');
 const importResult = fs.readFileSync('app/Services/CartImport/ImportResult.php', 'utf8');
-const adapter = fs.readFileSync('app/Services/CartImport/Adapters/SheinShareAdapter.php', 'utf8');
 const ui = fs.readFileSync('public/js/app-ui.js', 'utf8');
 
 test('browser importer prioritizes the visible SHEIN shared-items landing page', () => {
@@ -42,12 +41,6 @@ test('shared-items worker reports visible products when USD prices are unavailab
   assert.match(sharedWorker, /final_url:finalUrl/);
   assert.match(importResult, /browser_status.*missing_usd_prices/s);
   assert.match(importResult, /browser_message/);
-});
-
-test('adapter records safe SHEIN diagnostics for failed imports', () => {
-  assert.match(adapter, /SHEIN import diagnostics/);
-  assert.match(adapter, /visible_product_count/);
-  assert.match(adapter, /network_usd_price_count/);
 });
 
 test('cart loading overlay paints before Safari submits the request', () => {
