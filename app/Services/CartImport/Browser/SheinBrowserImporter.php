@@ -36,9 +36,6 @@ class SheinBrowserImporter
         $primaryProfile = (string) config('services.cart_import.shein_browser.profile_dir', storage_path('app/shein-browser-profile'));
         $sharedDiagnostic = null;
 
-        // New SHEIN onelink shares can open a shared-items landing page instead of
-        // the classic cart/share endpoint. Read the visible shared products first,
-        // independent of page language. Only confirmed USD prices are accepted.
         if (is_file($sharedPageScript)) {
             $sharedProfile = storage_path('app/shein-shared-page-profile/'.Str::uuid());
             try {
@@ -51,6 +48,24 @@ class SheinBrowserImporter
             $shared['meta']['source'] = 'shein_shared_items_page';
 
             if (($shared['items'] ?? []) !== []) {
+                if (SheinImportedItemCleaner::needsEnrichment($shared['items'])) {
+                    $fallbackProfile = storage_path('app/shein-browser-enrichment/'.Str::uuid());
+                    try {
+                        $fallback = $this->runWorker($url, $fallbackProfile, $script);
+                    } finally {
+                        File::deleteDirectory($fallbackProfile);
+                    }
+                    $shared['items'] = SheinImportedItemCleaner::clean(
+                        $shared['items'],
+                        is_array($fallback['items'] ?? null) ? $fallback['items'] : []
+                    );
+                    $shared['meta']['item_enrichment_attempted'] = true;
+                    $shared['meta']['item_enrichment_fallback_count'] = count($fallback['items'] ?? []);
+                } else {
+                    $shared['items'] = SheinImportedItemCleaner::clean($shared['items']);
+                    $shared['meta']['item_enrichment_attempted'] = false;
+                }
+
                 return $shared;
             }
 
@@ -61,6 +76,7 @@ class SheinBrowserImporter
 
         $first = $this->runWorker($url, $primaryProfile, $script);
         $first = $this->withAttemptMeta($first, 1, false);
+        $first['items'] = SheinImportedItemCleaner::clean($first['items'] ?? []);
 
         if (($first['items'] ?? []) !== []) {
             return $first;
@@ -78,6 +94,7 @@ class SheinBrowserImporter
         } finally {
             File::deleteDirectory($retryProfile);
         }
+        $retry['items'] = SheinImportedItemCleaner::clean($retry['items'] ?? []);
 
         if (($retry['items'] ?? []) !== []) {
             return $retry;
