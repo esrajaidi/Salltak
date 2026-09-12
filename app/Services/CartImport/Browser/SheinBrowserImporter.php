@@ -54,7 +54,7 @@ class SheinBrowserImporter
                 return $shared;
             }
 
-            if (($shared['status'] ?? null) === 'missing_usd_prices') {
+            if (in_array((string) ($shared['status'] ?? ''), ['missing_usd_prices', 'shared_page_unreadable'], true)) {
                 $sharedDiagnostic = $shared;
             }
         }
