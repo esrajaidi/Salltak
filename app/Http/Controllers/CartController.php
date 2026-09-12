@@ -32,6 +32,10 @@ class CartController extends Controller
 
     public function analyze(Request $request)
     {
+        $rawSource = (string) $request->input('source_url', '');
+        $normalizedSource = $this->extractSharedUrl($rawSource) ?? $rawSource;
+        $request->merge(['source_url' => $normalizedSource]);
+
         $data = $request->validate(['source_url' => ['required', 'url:http,https', 'max:2000']]);
         $import = $this->importer->import($data['source_url']);
         $result = $import['result'];
@@ -80,6 +84,17 @@ class CartController extends Controller
             'previewToken' => $previewToken,
             'previewItems' => $previewItems,
         ]);
+    }
+
+    private function extractSharedUrl(string $value): ?string
+    {
+        $clean = preg_replace('/[\x{200B}\x{200C}\x{200D}\x{2060}\x{FEFF}]/u', '', trim($value)) ?? trim($value);
+
+        if (! preg_match('~https://[^\s<>"\']+~iu', $clean, $matches)) {
+            return null;
+        }
+
+        return rtrim($matches[0], " \t\n\r\0\x0B.,،؛;!؟)]}>'\"");
     }
 
     public function store(Request $request)
