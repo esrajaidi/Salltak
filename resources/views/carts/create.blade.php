@@ -14,9 +14,9 @@
                     <form method="POST" action="{{ route('carts.analyze') }}" id="analyzeForm" data-cart-import>
                         @csrf
                         <label class="form-label fw-bold" for="source_url">رابط مشاركة السلة</label>
-                        <div class="input-group input-group-lg flex-column flex-sm-row gap-2 gap-sm-0">
-                            <input id="source_url" class="form-control ltr @error('source_url') is-invalid @enderror" type="url" name="source_url" value="{{ old('source_url') }}" placeholder="https://m.shein.com/ar/cart/share/landing?..." required>
-                            <button class="btn btn-primary px-4 icon-text-btn" type="submit"><x-icon name="search"/><span class="submit-label">جلب السلة</span><span class="spinner-border spinner-border-sm d-none" aria-hidden="true"></span></button>
+                        <div class="cart-link-entry d-grid d-sm-flex gap-2 align-items-stretch">
+                            <input id="source_url" class="form-control form-control-lg ltr w-100 flex-grow-1 @error('source_url') is-invalid @enderror" type="url" name="source_url" value="{{ old('source_url') }}" placeholder="https://m.shein.com/ar/cart/share/landing?..." required>
+                            <button class="btn btn-primary px-4 icon-text-btn flex-shrink-0" type="submit"><x-icon name="search"/><span class="submit-label">جلب السلة</span><span class="spinner-border spinner-border-sm d-none" aria-hidden="true"></span></button>
                         </div>
                         <div class="form-text mt-2">الصق <strong>رابط مشاركة السلة</strong> وليس رابط صفحة السلة العادي.</div>
                     </form>
