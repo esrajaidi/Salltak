@@ -15,10 +15,10 @@
                         @csrf
                         <label class="form-label fw-bold" for="source_url">رابط مشاركة السلة</label>
                         <div class="cart-link-entry d-grid d-sm-flex gap-2 align-items-stretch">
-                            <input id="source_url" class="form-control form-control-lg ltr w-100 flex-grow-1 @error('source_url') is-invalid @enderror" type="url" name="source_url" value="{{ old('source_url') }}" placeholder="https://m.shein.com/ar/cart/share/landing?..." required>
+                            <input id="source_url" class="form-control form-control-lg ltr w-100 flex-grow-1 @error('source_url') is-invalid @enderror" type="text" inputmode="url" autocomplete="off" name="source_url" value="{{ old('source_url') }}" placeholder="ألصق رابط SHEIN أو نص المشاركة كاملًا" required>
                             <button class="btn btn-primary px-4 icon-text-btn flex-shrink-0" type="submit"><x-icon name="search"/><span class="submit-label">جلب السلة</span><span class="spinner-border spinner-border-sm d-none" aria-hidden="true"></span></button>
                         </div>
-                        <div class="form-text mt-2">الصق <strong>رابط مشاركة السلة</strong> وليس رابط صفحة السلة العادي.</div>
+                        <div class="form-text mt-2">يمكنك لصق <strong>الرابط فقط</strong> أو <strong>نص المشاركة كاملًا</strong> من SHEIN، وسنستخرج الرابط تلقائيًا.</div>
                     </form>
 
                     <div class="row g-3 mt-4">
