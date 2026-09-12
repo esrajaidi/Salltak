@@ -34,10 +34,11 @@ class SheinBrowserImporter
         }
 
         $primaryProfile = (string) config('services.cart_import.shein_browser.profile_dir', storage_path('app/shein-browser-profile'));
+        $sharedDiagnostic = null;
 
-        // New SHEIN onelink shares can open an "Items shared by ..." landing page
-        // instead of the classic cart/share endpoint. Read those visible product rows
-        // first so a real shared list is not incorrectly reported as an empty cart.
+        // New SHEIN onelink shares can open a shared-items landing page instead of
+        // the classic cart/share endpoint. Read the visible shared products first,
+        // independent of page language. Only confirmed USD prices are accepted.
         if (is_file($sharedPageScript)) {
             $sharedProfile = storage_path('app/shein-shared-page-profile/'.Str::uuid());
             try {
@@ -46,18 +47,27 @@ class SheinBrowserImporter
                 File::deleteDirectory($sharedProfile);
             }
 
+            $shared = $this->withAttemptMeta($shared, 1, false);
+            $shared['meta']['source'] = 'shein_shared_items_page';
+
             if (($shared['items'] ?? []) !== []) {
-                $shared = $this->withAttemptMeta($shared, 1, false);
-                $shared['meta']['source'] = 'shein_shared_items_page';
                 return $shared;
+            }
+
+            if (($shared['status'] ?? null) === 'missing_usd_prices') {
+                $sharedDiagnostic = $shared;
             }
         }
 
         $first = $this->runWorker($url, $primaryProfile, $script);
         $first = $this->withAttemptMeta($first, 1, false);
 
-        if (! $this->shouldRetryEmptyLoadedResult($first)) {
+        if (($first['items'] ?? []) !== []) {
             return $first;
+        }
+
+        if (! $this->shouldRetryEmptyLoadedResult($first)) {
+            return $sharedDiagnostic ?? $first;
         }
 
         $retryProfile = storage_path('app/shein-browser-retry/'.Str::uuid());
@@ -71,6 +81,13 @@ class SheinBrowserImporter
 
         if (($retry['items'] ?? []) !== []) {
             return $retry;
+        }
+
+        if ($sharedDiagnostic !== null) {
+            $sharedDiagnostic['meta']['import_attempt_count'] = 2;
+            $sharedDiagnostic['meta']['fresh_profile_retry'] = true;
+            $sharedDiagnostic['meta']['fallback_status'] = $retry['status'] ?? null;
+            return $sharedDiagnostic;
         }
 
         if (($retry['status'] ?? null) === 'challenge') {
