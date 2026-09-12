@@ -2,19 +2,15 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-const worker = fs.readFileSync('scripts/shein-shared-page-import.mjs', 'utf8');
-const preview = fs.readFileSync('resources/views/carts/preview.blade.php', 'utf8');
+const cleaner = fs.readFileSync('app/Services/CartImport/Browser/SheinImportedItemCleaner.php', 'utf8');
 
-test('shared SHEIN worker only keeps image-like URLs and maps network images by product id', () => {
-  assert.match(worker, /function isLikelyImageUrl/);
-  assert.match(worker, /networkImageById/);
-  assert.match(worker, /maps\.networkImageById\.set/);
-  assert.match(worker, /resolvedImage/);
-  assert.match(worker, /image_url:\s*resolvedImage/);
+test('SHEIN image cleaner rejects page URLs and keeps real CDN images', () => {
+  assert.match(cleaner, /ltwebstatic\.com/);
+  assert.match(cleaner, /pathinfo/);
+  assert.match(cleaner, /\['jpg', 'jpeg', 'png', 'webp', 'gif', 'avif'\]/);
 });
 
-test('cart preview replaces a browser-broken product image with the normal placeholder', () => {
-  assert.match(preview, /data-product-image/);
-  assert.match(preview, /data-product-image-fallback/);
-  assert.match(preview, /addEventListener\('error'/);
+test('SHEIN image cleaner can recover from a valid fallback image', () => {
+  assert.match(cleaner, /fallbackById/);
+  assert.match(cleaner, /cleanImage\(\(string\) \(\$fallback\['image_url'\]/);
 });
