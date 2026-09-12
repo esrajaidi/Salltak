@@ -19,6 +19,12 @@ class ImportResult
 
     public static function needsReview(string $message, array $items = [], ?string $currency = null, array $meta = []): self
     {
+        if (($meta['browser_status'] ?? null) === 'missing_usd_prices'
+            && is_string($meta['browser_message'] ?? null)
+            && trim((string) $meta['browser_message']) !== '') {
+            $message = (string) $meta['browser_message'];
+        }
+
         return new self('needs_review', $message, $items, $currency, $meta);
     }
 
