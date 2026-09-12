@@ -113,7 +113,28 @@ class SheinImportedItemCleaner
             return '';
         }
 
-        return $value;
+        $parts = parse_url($value);
+        if (! is_array($parts)) {
+            return '';
+        }
+
+        $host = strtolower((string) ($parts['host'] ?? ''));
+        $path = (string) ($parts['path'] ?? '');
+        $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+        $imageExtensions = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'avif'];
+
+        // SHEIN product/page URLs are sometimes exposed under generic `url`/`src`
+        // keys in network payloads. Do not render those as <img> sources.
+        if ($host === 'shein.com' || str_ends_with($host, '.shein.com')) {
+            return in_array($extension, $imageExtensions, true) ? $value : '';
+        }
+
+        // SHEIN's product CDN commonly serves images from ltwebstatic.com.
+        if ($host === 'ltwebstatic.com' || str_ends_with($host, '.ltwebstatic.com')) {
+            return $value;
+        }
+
+        return in_array($extension, $imageExtensions, true) ? $value : '';
     }
 
     private static function normalizeUrl(string $value): string
