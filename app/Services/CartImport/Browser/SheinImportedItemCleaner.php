@@ -100,6 +100,11 @@ class SheinImportedItemCleaner
     private static function cleanImage(string $value): string
     {
         $value = trim($value);
+
+        if (str_starts_with($value, '//')) {
+            $value = 'https:'.$value;
+        }
+
         if (! preg_match('#^https?://#i', $value)) {
             return '';
         }
