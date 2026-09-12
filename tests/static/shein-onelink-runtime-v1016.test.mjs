@@ -5,6 +5,7 @@ import fs from 'node:fs';
 const importer = fs.readFileSync('app/Services/CartImport/Browser/SheinBrowserImporter.php', 'utf8');
 const sharedWorker = fs.readFileSync('scripts/shein-shared-page-import.mjs', 'utf8');
 const importResult = fs.readFileSync('app/Services/CartImport/ImportResult.php', 'utf8');
+const adapter = fs.readFileSync('app/Services/CartImport/Adapters/SheinShareAdapter.php', 'utf8');
 const ui = fs.readFileSync('public/js/app-ui.js', 'utf8');
 
 test('browser importer prioritizes the visible SHEIN shared-items landing page', () => {
@@ -19,8 +20,17 @@ test('shared-items worker detects shared lists without depending on English copy
   assert.match(sharedWorker, /cart\/share|cart_share|group_id|shared by|مشاركة|السلة/i);
 });
 
-test('shared-items worker matches visible products to network USD prices', () => {
+test('shared-items worker discovers product cards from images when product links are opaque', () => {
+  assert.match(sharedWorker, /imageCandidateRoots/);
+  assert.match(sharedWorker, /document\.querySelectorAll\('img'\)/);
+  assert.match(sharedWorker, /candidate_root_count/);
+  assert.match(sharedWorker, /image_candidate_count/);
+});
+
+test('shared-items worker matches visible products to network USD prices by id or name', () => {
   assert.match(sharedWorker, /networkUsdById/);
+  assert.match(sharedWorker, /networkUsdByName/);
+  assert.match(sharedWorker, /normalizeName/);
   assert.match(sharedWorker, /usdAmount|usd_amount|usdPrice|usd_price/);
   assert.match(sharedWorker, /missing_usd_price_count/);
   assert.match(sharedWorker, /currency:\s*'USD'/);
@@ -32,6 +42,12 @@ test('shared-items worker reports visible products when USD prices are unavailab
   assert.match(sharedWorker, /final_url:finalUrl/);
   assert.match(importResult, /browser_status.*missing_usd_prices/s);
   assert.match(importResult, /browser_message/);
+});
+
+test('adapter records safe SHEIN diagnostics for failed imports', () => {
+  assert.match(adapter, /SHEIN import diagnostics/);
+  assert.match(adapter, /visible_product_count/);
+  assert.match(adapter, /network_usd_price_count/);
 });
 
 test('cart loading overlay paints before Safari submits the request', () => {
