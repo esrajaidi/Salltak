@@ -4,12 +4,13 @@ import fs from 'node:fs';
 
 const importer = fs.readFileSync('app/Services/CartImport/Browser/SheinBrowserImporter.php', 'utf8');
 const sharedWorker = fs.readFileSync('scripts/shein-shared-page-import.mjs', 'utf8');
-const adapter = fs.readFileSync('app/Services/CartImport/Adapters/SheinShareAdapter.php', 'utf8');
+const importResult = fs.readFileSync('app/Services/CartImport/ImportResult.php', 'utf8');
 const ui = fs.readFileSync('public/js/app-ui.js', 'utf8');
 
 test('browser importer prioritizes the visible SHEIN shared-items landing page', () => {
   assert.match(importer, /shein-shared-page-import\.mjs/);
   assert.match(importer, /shein_shared_items_page/);
+  assert.match(importer, /missing_usd_prices/);
 });
 
 test('shared-items worker detects shared lists without depending on English copy', () => {
@@ -28,9 +29,9 @@ test('shared-items worker matches visible products to network USD prices', () =>
 test('shared-items worker reports visible products when USD prices are unavailable', () => {
   assert.match(sharedWorker, /status:'missing_usd_prices'/);
   assert.match(sharedWorker, /وجدنا منتجات في رابط SHEIN/);
-  assert.match(sharedWorker, /final_url:page\.url\(\)/);
-  assert.match(adapter, /missing_usd_prices/);
-  assert.match(adapter, /وجدنا منتجات في رابط SHEIN/);
+  assert.match(sharedWorker, /final_url:finalUrl/);
+  assert.match(importResult, /browser_status.*missing_usd_prices/s);
+  assert.match(importResult, /browser_message/);
 });
 
 test('cart loading overlay paints before Safari submits the request', () => {
