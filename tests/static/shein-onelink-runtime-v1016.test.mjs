@@ -2,19 +2,21 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-const worker = fs.readFileSync('scripts/shein-browser-import.mjs', 'utf8');
+const importer = fs.readFileSync('app/Services/CartImport/Browser/SheinBrowserImporter.php', 'utf8');
+const sharedWorker = fs.readFileSync('scripts/shein-shared-page-import.mjs', 'utf8');
 const ui = fs.readFileSync('public/js/app-ui.js', 'utf8');
 
-test('browser worker uses the resolved SHEIN browser URL after onelink navigation', () => {
-  assert.match(worker, /const resolvedBrowserUrl = page\.url\(\);/);
-  assert.match(worker, /shareApiRequestFromUrl\(resolvedBrowserUrl\)/);
-  assert.match(worker, /extractItemsFromPayload\(decoded, resolvedBrowserUrl,/);
+test('browser importer prioritizes the visible SHEIN shared-items landing page', () => {
+  assert.match(importer, /shein-shared-page-import\.mjs/);
+  assert.match(importer, /shein_shared_items_page/);
+  assert.match(sharedWorker, /items shared by\|add all to cart\|shared items\|shared by/i);
+  assert.match(sharedWorker, /quantity:\s*1/);
+  assert.match(sharedWorker, /currency:\s*'USD'/);
 });
 
-test('shared-items landing page can treat visible shared product rows as quantity one', () => {
-  assert.match(worker, /const sharedItemsLanding = .*items shared by.*add all to cart/is);
-  assert.match(worker, /sharedItemsLanding \? 1 : 0/);
-  assert.match(worker, /if \(!sharedItemsLanding && !\/(cart\|bag\|basket)\/i\.test\(contextText\)\) continue;/);
+test('shared-items worker keeps the final URL after onelink navigation', () => {
+  assert.match(sharedWorker, /final_url:page\.url\(\)/);
+  assert.match(sharedWorker, /page\.goto\(targetUrl/);
 });
 
 test('cart loading overlay paints before Safari submits the request', () => {
