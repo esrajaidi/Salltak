@@ -8,16 +8,6 @@ use Illuminate\Support\Str;
 
 class SheinBrowserImporter
 {
-    /**
-     * Render a SHEIN shared-cart URL in a real Chromium browser and return
-     * JSON/XHR payloads plus DOM-normalized items for the PHP adapter.
-     *
-     * SHEIN's shared-cart BFF is occasionally inconsistent: the exact same
-     * public share URL may return the cart once and an empty/403-backed app
-     * shell on the next request. When Chromium fully loads but yields zero
-     * cart rows, retry once in a fresh browser profile so a poisoned cookie /
-     * browser session does not turn a valid cart into an empty preview.
-     */
     public function import(string $url): array
     {
         if (! config('services.cart_import.shein_browser.enabled', true)) {
@@ -31,6 +21,8 @@ class SheinBrowserImporter
         }
 
         $script = base_path('scripts/shein-browser-import.mjs');
+        $sharedPageScript = base_path('scripts/shein-shared-page-import.mjs');
+
         if (! is_file($script)) {
             return [
                 'ok' => false,
@@ -42,6 +34,25 @@ class SheinBrowserImporter
         }
 
         $primaryProfile = (string) config('services.cart_import.shein_browser.profile_dir', storage_path('app/shein-browser-profile'));
+
+        // New SHEIN onelink shares can open an "Items shared by ..." landing page
+        // instead of the classic cart/share endpoint. Read those visible product rows
+        // first so a real shared list is not incorrectly reported as an empty cart.
+        if (is_file($sharedPageScript)) {
+            $sharedProfile = storage_path('app/shein-shared-page-profile/'.Str::uuid());
+            try {
+                $shared = $this->runWorker($url, $sharedProfile, $sharedPageScript);
+            } finally {
+                File::deleteDirectory($sharedProfile);
+            }
+
+            if (($shared['items'] ?? []) !== []) {
+                $shared = $this->withAttemptMeta($shared, 1, false);
+                $shared['meta']['source'] = 'shein_shared_items_page';
+                return $shared;
+            }
+        }
+
         $first = $this->runWorker($url, $primaryProfile, $script);
         $first = $this->withAttemptMeta($first, 1, false);
 
@@ -62,14 +73,10 @@ class SheinBrowserImporter
             return $retry;
         }
 
-        // A challenge on the retry is more actionable than a generic empty load.
         if (($retry['status'] ?? null) === 'challenge') {
             return $retry;
         }
 
-        // Preserve the original loaded response if the fresh retry degrades into
-        // a process/browser failure. The adapter can then show the correct
-        // "loaded but no items" guidance instead of a misleading worker error.
         if (! in_array((string) ($retry['status'] ?? ''), ['loaded'], true)) {
             $first['meta']['import_attempt_count'] = 2;
             $first['meta']['fresh_profile_retry'] = true;
