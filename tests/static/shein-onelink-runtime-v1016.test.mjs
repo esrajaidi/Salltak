@@ -9,14 +9,25 @@ const ui = fs.readFileSync('public/js/app-ui.js', 'utf8');
 test('browser importer prioritizes the visible SHEIN shared-items landing page', () => {
   assert.match(importer, /shein-shared-page-import\.mjs/);
   assert.match(importer, /shein_shared_items_page/);
-  assert.match(sharedWorker, /items shared by\|add all to cart\|shared items\|shared by/i);
-  assert.match(sharedWorker, /quantity:\s*1/);
+});
+
+test('shared-items worker detects shared lists without depending on English copy', () => {
+  assert.match(sharedWorker, /visible_product_count/);
+  assert.match(sharedWorker, /sharedPageEvidence/);
+  assert.match(sharedWorker, /cart\/share|cart_share|group_id|shared by|مشاركة|السلة/i);
+});
+
+test('shared-items worker matches visible products to network USD prices', () => {
+  assert.match(sharedWorker, /networkUsdById/);
+  assert.match(sharedWorker, /usdAmount|usd_amount|usdPrice|usd_price/);
+  assert.match(sharedWorker, /missing_usd_price_count/);
   assert.match(sharedWorker, /currency:\s*'USD'/);
 });
 
-test('shared-items worker keeps the final URL after onelink navigation', () => {
+test('shared-items worker reports visible products when USD prices are unavailable', () => {
+  assert.match(sharedWorker, /status:'missing_usd_prices'/);
+  assert.match(sharedWorker, /وجدنا منتجات في رابط SHEIN/);
   assert.match(sharedWorker, /final_url:page\.url\(\)/);
-  assert.match(sharedWorker, /page\.goto\(targetUrl/);
 });
 
 test('cart loading overlay paints before Safari submits the request', () => {
