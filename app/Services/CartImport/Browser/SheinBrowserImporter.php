@@ -34,7 +34,6 @@ class SheinBrowserImporter
         }
 
         $primaryProfile = (string) config('services.cart_import.shein_browser.profile_dir', storage_path('app/shein-browser-profile'));
-        $sharedDiagnostic = null;
 
         if (is_file($sharedPageScript)) {
             $sharedProfile = storage_path('app/shein-shared-page-profile/'.Str::uuid());
@@ -70,7 +69,7 @@ class SheinBrowserImporter
             }
 
             if (in_array((string) ($shared['status'] ?? ''), ['missing_usd_prices', 'shared_page_unreadable'], true)) {
-                $sharedDiagnostic = $shared;
+                return $shared;
             }
         }
 
@@ -83,7 +82,7 @@ class SheinBrowserImporter
         }
 
         if (! $this->shouldRetryEmptyLoadedResult($first)) {
-            return $sharedDiagnostic ?? $first;
+            return $first;
         }
 
         $retryProfile = storage_path('app/shein-browser-retry/'.Str::uuid());
@@ -98,13 +97,6 @@ class SheinBrowserImporter
 
         if (($retry['items'] ?? []) !== []) {
             return $retry;
-        }
-
-        if ($sharedDiagnostic !== null) {
-            $sharedDiagnostic['meta']['import_attempt_count'] = 2;
-            $sharedDiagnostic['meta']['fresh_profile_retry'] = true;
-            $sharedDiagnostic['meta']['fallback_status'] = $retry['status'] ?? null;
-            return $sharedDiagnostic;
         }
 
         if (($retry['status'] ?? null) === 'challenge') {
