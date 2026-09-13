@@ -58,6 +58,21 @@ function normalizeImageKey(value) {
   }
 }
 
+function isLikelyImageUrl(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return false;
+  try {
+    const u = new URL(raw, 'https://m.shein.com/');
+    const host = u.hostname.toLowerCase();
+    const pathname = u.pathname.toLowerCase();
+    if (/placeholder|default[-_]?image|no[-_]?image|transparent|spacer|blank|logo|icon|avatar|badge/.test(pathname)) return false;
+    if (host.endsWith('ltwebstatic.com')) return true;
+    return /\.(?:jpe?g|png|webp|gif|avif)(?:$|[/?#])/i.test(`${pathname}${u.search}`);
+  } catch {
+    return false;
+  }
+}
+
 function explicitUsd(value, depth = 0) {
   if (depth > 6 || !value || typeof value !== 'object') return 0;
   if (!Array.isArray(value)) {
@@ -103,7 +118,7 @@ function objectImage(value, depth = 0) {
   if (depth > 4 || value === null || value === undefined) return '';
   if (typeof value === 'string') {
     const s = value.trim();
-    return /^(https?:)?\/\//i.test(s) || s.startsWith('/') ? s : '';
+    return isLikelyImageUrl(s) ? s : '';
   }
   if (Array.isArray(value)) {
     for (const child of value) {
@@ -113,7 +128,7 @@ function objectImage(value, depth = 0) {
     return '';
   }
   if (typeof value === 'object') {
-    for (const key of ['goods_img', 'goodsImg', 'goods_image', 'goodsImage', 'product_img', 'productImage', 'image_url', 'imageUrl', 'image', 'thumbnail', 'thumb', 'main_image', 'mainImage', 'url', 'src']) {
+    for (const key of ['goods_img', 'goodsImg', 'goods_image', 'goodsImage', 'product_img', 'productImage', 'image_url', 'imageUrl', 'image', 'thumbnail', 'thumb', 'main_image', 'mainImage']) {
       if (!Object.prototype.hasOwnProperty.call(value, key)) continue;
       const image = objectImage(value[key], depth + 1);
       if (image) return image;
@@ -131,6 +146,10 @@ function collectNetworkUsd(node, maps, trusted = false, depth = 0, seen = new We
     const name = objectName(node);
     const image = objectImage(node);
     const amount = explicitUsd(node);
+
+    if (image) {
+      for (const id of ids) if (!maps.networkImageById.has(id)) maps.networkImageById.set(id, image);
+    }
 
     if (amount > 0) {
       for (const id of ids) if (!maps.networkUsdById.has(id)) maps.networkUsdById.set(id, amount);
@@ -197,7 +216,7 @@ if (!allowed(targetUrl)) {
   try {
     context = await chromium.launchPersistentContext(profileDir, {
       headless: cfg.headless !== false,
-      locale: 'ar-AE',
+      locale: 'en-AE',
       viewport: { width: 430, height: 932 },
       userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 Version/18.7 Mobile/15E148 Safari/604.1',
       args: ['--disable-dev-shm-usage'],
@@ -208,6 +227,7 @@ if (!allowed(targetUrl)) {
       networkUsdById: new Map(),
       networkUsdByName: new Map(),
       networkUsdByImage: new Map(),
+      networkImageById: new Map(),
       networkProducts: new Map(),
     };
     const responseTasks = [];
@@ -245,33 +265,135 @@ if (!allowed(targetUrl)) {
       const abs = value => {
         try { return new URL(String(value || ''), location.href).href; } catch { return String(value || ''); }
       };
+      const normalizeName = value => String(value || '')
+        .normalize('NFKC')
+        .toLowerCase()
+        .replace(/[\u200b-\u200f\u202a-\u202e]/g, '')
+        .replace(/[^\p{L}\p{N}]+/gu, ' ')
+        .trim()
+        .replace(/\s+/g, ' ');
+      const imageKey = value => {
+        try {
+          const u = new URL(String(value || ''), location.href);
+          return u.pathname.split('/').filter(Boolean).pop()?.toLowerCase() || '';
+        } catch { return ''; }
+      };
+      const isLikelyImageUrl = value => {
+        try {
+          const u = new URL(String(value || ''), location.href);
+          const host = u.hostname.toLowerCase();
+          const pathname = u.pathname.toLowerCase();
+          if (/placeholder|default[-_]?image|no[-_]?image|transparent|spacer|blank|logo|icon|avatar|badge/.test(pathname)) return false;
+          if (host.endsWith('ltwebstatic.com')) return true;
+          return /\.(?:jpe?g|png|webp|gif|avif)(?:$|[/?#])/i.test(`${pathname}${u.search}`);
+        } catch { return false; }
+      };
+      const usdFromText = text => {
+        const raw = String(text || '').replace(/,/g, '');
+        const match = raw.match(/(?:USD|US\$|\$)\s*([0-9]+(?:\.[0-9]{1,4})?)/i)
+          || raw.match(/([0-9]+(?:\.[0-9]{1,4})?)\s*(?:USD|US\$)/i);
+        const value = Number(match?.[1] || 0);
+        return Number.isFinite(value) && value > 0 ? value : 0;
+      };
+      const visibleUsdPriceFromRoot = root => {
+        const nodes = [...root.querySelectorAll('[class*="price"], [class*="sale"], [class*="amount"], [data-testid*="price"], span, strong, b')];
+        const candidates = [];
+        for (const node of nodes) {
+          const text = String(node.textContent || '').trim();
+          if (!text || text.length > 80) continue;
+          const price = usdFromText(text);
+          if (!(price > 0)) continue;
+          const style = getComputedStyle(node);
+          const lineage = [];
+          let p = node;
+          for (let i = 0; p && i < 3; i++, p = p.parentElement) lineage.push(`${p.tagName || ''} ${p.className || ''}`);
+          if (/line-through/i.test(style.textDecorationLine || style.textDecoration || '') || /\b(?:DEL|S)\b|origin|original|retail|market|old|cross|was-price/i.test(lineage.join(' '))) continue;
+          const cls = `${node.className || ''} ${node.parentElement?.className || ''}`;
+          let score = text.length;
+          if (/sale|discount|current|final|special|price-now/i.test(cls)) score -= 50;
+          if (node.children.length === 0) score -= 10;
+          candidates.push({ price, score });
+        }
+        candidates.sort((a, b) => a.score - b.score);
+        if (candidates[0]?.price > 0) return candidates[0].price;
+        const lines = String(root.innerText || '').split(/\n+/).map(x => x.trim()).filter(Boolean);
+        for (const line of lines) {
+          const price = usdFromText(line);
+          if (price > 0) return price;
+        }
+        return 0;
+      };
+      const isGenericSharedProductName = value => {
+        const name = normalizeName(value);
+        return !name
+          || name === 'shein'
+          || name === 'منتج shein'
+          || name === 'منتج شي ان'
+          || /^(items shared by|shared items|add all to cart|cart|share my cart)/i.test(name)
+          || /^(العناصر التي تمت مشاركتها|العناصر المشتركة|إضافة الكل|اضافة الكل)/i.test(name);
+      };
+      const productEvidence = root => {
+        if (!root?.querySelector) return false;
+        const image = root.querySelector('img');
+        if (!image) return false;
+        const text = String(root.innerText || '').trim();
+        return text.length >= 6 && text.length <= 1800 && /(?:USD|US\$|\$)\s*[0-9]|[0-9]+(?:\.[0-9]+)?\s*(?:USD|US\$)/i.test(text);
+      };
+      const pruneNestedProductRoots = roots => {
+        const unique = [...new Set(roots)].filter(Boolean);
+        return unique.filter(root => !unique.some(other => other !== root && root.contains(other) && productEvidence(other)));
+      };
+      const canonicalProductKey = product => {
+        const img = imageKey(product.image_url);
+        if (img) return `img:${img}`;
+        const id = String(product.external_id || '').trim();
+        if (id) return `id:${id}`;
+        try {
+          const u = new URL(String(product.product_url || ''), location.href);
+          if (u.pathname) return `url:${u.pathname.toLowerCase()}`;
+        } catch {}
+        const name = normalizeName(product.name);
+        return name ? `name:${name}` : '';
+      };
       const excluded = /(recommend|suggest|similar|related|guess|you.?may.?like|wishlist|favorite|favourite|recent|viewed|history|search|trend|campaign|marketing)/i;
-      const pricePattern = /(?:USD|AED|SAR|KWD|QAR|BHD|OMR|\$|د\.?إ|ر\.?س)\s*[0-9]|[0-9]+(?:\.[0-9]+)?\s*(?:USD|AED|SAR|KWD|QAR|BHD|OMR)/i;
+      const pricePattern = /(?:USD|US\$|\$)\s*[0-9]|[0-9]+(?:\.[0-9]+)?\s*(?:USD|US\$)/i;
       const linkRoots = new Set();
       const imageCandidateRoots = new Set();
       const productLinks = [...document.querySelectorAll('a[href*="-p-"], a[href*="/product"], a[href*="goods"]')];
 
       for (const link of productLinks) {
-        const root = link.closest('[data-goods-id], [data-product-id], [data-sku-id], article, li, [class*="item"], [class*="goods"], [class*="product"]') || link.parentElement;
-        if (root) linkRoots.add(root);
+        let root = link.closest('[data-goods-id], [data-product-id], [data-sku-id], article, li, [class*="goods-item"], [class*="product-item"], [class*="cart-item"]');
+        if (!root) {
+          let parent = link.parentElement;
+          for (let depth = 0; parent && depth < 6; depth++, parent = parent.parentElement) {
+            if (productEvidence(parent)) { root = parent; break; }
+          }
+        }
+        if (root && productEvidence(root)) linkRoots.add(root);
       }
 
       for (const img of document.querySelectorAll('img')) {
         const src = abs(img.currentSrc || img.getAttribute('src') || img.getAttribute('data-src') || img.getAttribute('data-original') || '');
-        if (!src || /logo|icon|avatar|flag|badge/i.test(src)) continue;
+        if (!isLikelyImageUrl(src)) continue;
         let parent = img.parentElement;
         for (let depth = 0; parent && depth < 7; depth++, parent = parent.parentElement) {
           const text = String(parent.innerText || '').trim();
-          if (!text || text.length < 8 || text.length > 2200) continue;
-          if (!pricePattern.test(text)) continue;
+          if (!text || text.length < 8 || text.length > 1800 || !pricePattern.test(text)) continue;
+          const substantialImages = [...parent.querySelectorAll('img')].filter(candidate => {
+            const candidateSrc = abs(candidate.currentSrc || candidate.getAttribute('src') || candidate.getAttribute('data-src') || candidate.getAttribute('data-original') || '');
+            return isLikelyImageUrl(candidateSrc);
+          });
+          if (substantialImages.length > 4) continue;
           imageCandidateRoots.add(parent);
           break;
         }
       }
 
-      const roots = [...new Set([...linkRoots, ...imageCandidateRoots])];
+      const roots = pruneNestedProductRoots([...linkRoots, ...imageCandidateRoots]);
       const result = [];
-      const seen = new Set();
+      const seenCanonical = new Set();
+      const seenIds = new Set();
+      const seenImages = new Set();
 
       for (const root of roots) {
         const lineage = [];
@@ -284,27 +406,35 @@ if (!allowed(targetUrl)) {
         const rect = root.getBoundingClientRect?.();
         if (rect && rect.width === 0 && rect.height === 0) continue;
 
-        const img = root.querySelector('img');
+        const img = [...root.querySelectorAll('img')].find(candidate => {
+          const src = abs(candidate.currentSrc || candidate.getAttribute('src') || candidate.getAttribute('data-src') || candidate.getAttribute('data-original') || '');
+          return isLikelyImageUrl(src);
+        });
         const image = abs(img?.currentSrc || img?.getAttribute('src') || img?.getAttribute('data-src') || img?.getAttribute('data-original') || '');
-        if (!image || /logo|icon|avatar|flag|badge/i.test(image)) continue;
+        if (!isLikelyImageUrl(image)) continue;
 
-        const link = root.querySelector('a[href]');
+        const link = (root.matches?.('a[href*="-p-"], a[href*="/product"], a[href*="goods"]') ? root : null)
+          || root.querySelector('a[href*="-p-"], a[href*="/product"], a[href*="goods"]');
         const href = abs(link?.getAttribute('href') || '');
+        const idNodes = [root, ...root.querySelectorAll('[data-goods-id], [data-product-id], [data-sku-id]')];
+        const ids = [];
+        for (const node of idNodes) {
+          for (const attr of ['data-goods-id', 'data-product-id', 'data-sku-id']) {
+            const value = node.getAttribute?.(attr);
+            if (value) ids.push(String(value));
+          }
+        }
         const idFromHref = href.match(/(?:-p-|goods[_/-]?)(\d{5,})/i)?.[1] || '';
-        const ids = [
-          root.getAttribute('data-goods-id'),
-          root.getAttribute('data-product-id'),
-          root.getAttribute('data-sku-id'),
-          idFromHref,
-        ].filter(Boolean).map(String);
-        const externalId = ids[0] || '';
+        if (idFromHref) ids.push(idFromHref);
+        const lookupIds = [...new Set(ids.filter(Boolean))];
+        const externalId = lookupIds[0] || '';
 
         const text = String(root.innerText || '').trim();
-        if (!text || text.length > 2200) continue;
+        if (!text || text.length > 1800) continue;
         const lines = text.split(/\n+/).map(x => x.trim()).filter(Boolean);
-        const nameNode = root.querySelector('[class*="name"], [class*="title"], [data-testid*="name"]');
+        const nameNode = root.querySelector('[class*="goods-name"], [class*="product-name"], [class*="item-name"], [class*="title"], [data-testid*="name"]');
         const ignoredLine = /sold|bought|save|coupon|lowest|eligible|add all|add to cart|%|أضف|إضافة|خصم|اشترى|تم البيع/i;
-        const priceLine = /(?:USD|AED|SAR|KWD|QAR|BHD|OMR|\$|د\.?إ|ر\.?س)\s*[0-9]|[0-9]+(?:\.[0-9]+)?\s*(?:USD|AED|SAR|KWD|QAR|BHD|OMR)/i;
+        const priceLine = /(?:USD|US\$|\$)\s*[0-9]|[0-9]+(?:\.[0-9]+)?\s*(?:USD|US\$)/i;
         const name = String(
           link?.getAttribute('aria-label') ||
           link?.getAttribute('title') ||
@@ -312,31 +442,34 @@ if (!allowed(targetUrl)) {
           lines.find(line => !priceLine.test(line) && !ignoredLine.test(line) && line.length > 4) ||
           ''
         ).trim().replace(/\s+/g, ' ').slice(0, 500);
-        if (!name) continue;
-
-        const usdMatch = text.match(/(?:USD|\$)\s*([0-9]+(?:\.[0-9]{1,4})?)/i) || text.match(/([0-9]+(?:\.[0-9]{1,4})?)\s*USD/i);
-        const explicitUsdPrice = Number(usdMatch?.[1] || 0) || 0;
+        if (isGenericSharedProductName(name)) continue;
 
         const variantLine = lines.find(line => /\//.test(line) && !/^https?:/i.test(line) && line.length < 180 && !priceLine.test(line)) || '';
         const parts = variantLine.split('/').map(x => x.trim()).filter(Boolean);
         const color = parts[0] || '';
         const size = parts.length > 1 ? parts.slice(1).join(' / ') : '';
+        const visibleUsdPrice = visibleUsdPriceFromRoot(root);
 
-        const key = externalId || href || `${name}|${image}`;
-        if (!key || seen.has(key)) continue;
-        seen.add(key);
-
-        result.push({
+        const product = {
           external_id: externalId,
-          lookup_ids: [...new Set(ids)],
+          lookup_ids: lookupIds,
           name,
           product_url: href,
           image_url: image,
           variant: variantLine,
           color,
           size,
-          explicit_usd_price: explicitUsdPrice,
-        });
+          visible_usd_price: visibleUsdPrice,
+        };
+        const key = canonicalProductKey(product);
+        const imgKey = imageKey(image);
+        if (!key || seenCanonical.has(key)) continue;
+        if (externalId && seenIds.has(externalId)) continue;
+        if (imgKey && seenImages.has(imgKey)) continue;
+        seenCanonical.add(key);
+        if (externalId) seenIds.add(externalId);
+        if (imgKey) seenImages.add(imgKey);
+        result.push(product);
         if (result.length >= 60) break;
       }
 
@@ -363,19 +496,21 @@ if (!allowed(targetUrl)) {
         const nameKey = normalizeName(candidate.name);
         const visibleByName = nameKey.length >= 10 && bodyNormalized.includes(nameKey);
         if (!candidate.trusted && !visibleByName) continue;
+        if (!candidate.name || /^منتج SHEIN$/i.test(candidate.name)) continue;
         const key = candidate.external_id || nameKey || normalizeImageKey(candidate.image_url);
         if (!key || seen.has(key)) continue;
         seen.add(key);
         fallback.push({
           external_id: candidate.external_id || '',
           lookup_ids: candidate.lookup_ids || [],
-          name: candidate.name || 'منتج SHEIN',
+          name: candidate.name,
           product_url: '',
           image_url: candidate.image_url || '',
           variant: '',
           color: '',
           size: '',
-          explicit_usd_price: Number(candidate.unit_price_original || 0) || 0,
+          visible_usd_price: 0,
+          network_usd_price: Number(candidate.unit_price_original || 0) || 0,
         });
         if (fallback.length >= MAX_ITEMS) break;
       }
@@ -409,7 +544,8 @@ if (!allowed(targetUrl)) {
       let missingUsdPriceCount = 0;
 
       for (const product of visibleProducts) {
-        let price = Number(product.explicit_usd_price || 0) || 0;
+        let price = Number(product.visible_usd_price || 0) || 0;
+        if (!(price > 0)) price = Number(product.network_usd_price || 0) || 0;
 
         if (!(price > 0)) {
           for (const id of product.lookup_ids || []) {
@@ -432,11 +568,22 @@ if (!allowed(targetUrl)) {
           continue;
         }
 
+        let resolvedImage = isLikelyImageUrl(product.image_url) ? product.image_url : '';
+        if (!resolvedImage) {
+          for (const id of product.lookup_ids || []) {
+            const networkImage = maps.networkImageById.get(String(id));
+            if (isLikelyImageUrl(networkImage)) {
+              resolvedImage = networkImage;
+              break;
+            }
+          }
+        }
+
         items.push({
           external_id: String(product.external_id || ''),
           name: product.name,
           product_url: product.product_url,
-          image_url: product.image_url,
+          image_url: resolvedImage,
           variant: product.variant,
           color: product.color,
           size: product.size,
