@@ -4,10 +4,16 @@ import fs from 'node:fs';
 
 const worker = fs.readFileSync('scripts/shein-shared-page-import.mjs', 'utf8');
 
-test('shared cart importer prunes nested duplicate product roots before extraction', () => {
-  assert.match(worker, /pruneNestedProductRoots\s*=|function pruneNestedProductRoots/);
-  assert.match(worker, /const roots = pruneNestedProductRoots\(/);
-  assert.match(worker, /canonicalProductKey/);
+test('shared cart importer builds product rows from one image-root per real product', () => {
+  assert.match(worker, /const roots = pruneNestedProductRoots\(\[\.\.\.imageCandidateRoots\]\)/);
+  assert.doesNotMatch(worker, /const roots = pruneNestedProductRoots\(\[\.\.\.linkRoots, \.\.\.imageCandidateRoots\]\)/);
+  assert.match(worker, /seenImages/);
+});
+
+test('shared cart importer sanitizes markup-only names before accepting a product', () => {
+  assert.match(worker, /cleanVisibleProductName\s*=|function cleanVisibleProductName/);
+  assert.match(worker, /const name = cleanVisibleProductName\(/);
+  assert.match(worker, /if \(isGenericSharedProductName\(name\)\) continue;/);
 });
 
 test('shared cart importer takes the USD price from the same visible product card first', () => {
@@ -16,7 +22,7 @@ test('shared cart importer takes the USD price from the same visible product car
   assert.match(worker, /let price = Number\(product\.visible_usd_price \|\| 0\)/);
 });
 
-test('shared cart importer rejects generic phantom product rows', () => {
-  assert.match(worker, /isGenericSharedProductName\s*=|function isGenericSharedProductName/);
-  assert.match(worker, /if \(isGenericSharedProductName\(name\)\) continue;/);
+test('shared cart importer never promotes broad network scan rows when DOM cards were unreadable', () => {
+  assert.doesNotMatch(worker, /if \(sharedPageEvidence && visibleProducts\.length === 0 && maps\.networkProducts\.size > 0\)/);
+  assert.match(worker, /status:'shared_page_unreadable'/);
 });
