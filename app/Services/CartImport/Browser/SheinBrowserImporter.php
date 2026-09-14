@@ -22,6 +22,7 @@ class SheinBrowserImporter
 
         $script = base_path('scripts/shein-browser-import.mjs');
         $sharedPageScript = base_path('scripts/shein-shared-page-import.mjs');
+        $sharedRetryScript = base_path('scripts/shein-shared-page-retry.mjs');
 
         if (! is_file($script)) {
             return [
@@ -34,6 +35,7 @@ class SheinBrowserImporter
         }
 
         $primaryProfile = (string) config('services.cart_import.shein_browser.profile_dir', storage_path('app/shein-browser-profile'));
+        $shared = null;
 
         if (is_file($sharedPageScript)) {
             $sharedProfile = storage_path('app/shein-shared-page-profile/'.Str::uuid());
@@ -68,7 +70,41 @@ class SheinBrowserImporter
                 return $shared;
             }
 
+            $shouldRetryShared = $this->isSharedCartUrl($url)
+                || in_array((string) ($shared['status'] ?? ''), ['missing_usd_prices', 'shared_page_unreadable', 'not_shared_page'], true);
+
+            if ($shouldRetryShared && is_file($sharedRetryScript)) {
+                $sharedRetryProfile = storage_path('app/shein-shared-page-retry/'.Str::uuid());
+                try {
+                    $sharedRetry = $this->runWorker($url, $sharedRetryProfile, $sharedRetryScript);
+                } finally {
+                    File::deleteDirectory($sharedRetryProfile);
+                }
+
+                $sharedRetry = $this->withAttemptMeta($sharedRetry, 2, true);
+                $sharedRetry['meta']['source'] = 'shein_shared_items_page_retry';
+                $sharedRetry['meta']['shared_page_retry'] = true;
+                $sharedRetry['meta']['initial_shared_status'] = $shared['status'] ?? null;
+
+                if (($sharedRetry['items'] ?? []) !== []) {
+                    $sharedRetry['items'] = SheinImportedItemCleaner::clean($sharedRetry['items']);
+                    return $sharedRetry;
+                }
+
+                if ($this->isSharedCartUrl($url)) {
+                    return $sharedRetry;
+                }
+
+                if (in_array((string) ($sharedRetry['status'] ?? ''), ['missing_usd_prices', 'shared_page_unreadable'], true)) {
+                    return $sharedRetry;
+                }
+            }
+
             if (in_array((string) ($shared['status'] ?? ''), ['missing_usd_prices', 'shared_page_unreadable'], true)) {
+                return $shared;
+            }
+
+            if ($this->isSharedCartUrl($url)) {
                 return $shared;
             }
         }
@@ -175,6 +211,18 @@ class SheinBrowserImporter
     {
         return (string) ($result['status'] ?? '') === 'loaded'
             && ($result['items'] ?? []) === [];
+    }
+
+    private function isSharedCartUrl(string $url): bool
+    {
+        $normalized = strtolower($url);
+
+        return str_contains($normalized, 'onelink.shein.com')
+            || str_contains($normalized, '/cart/share')
+            || str_contains($normalized, '/share/landing')
+            || str_contains($normalized, 'cart_share=1')
+            || str_contains($normalized, 'group_id=')
+            || str_contains($normalized, 'shc=');
     }
 
     private function withAttemptMeta(array $result, int $attemptCount, bool $freshProfileRetry): array
