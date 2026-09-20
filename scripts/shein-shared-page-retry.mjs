@@ -65,6 +65,9 @@ if (!isSheinUrl(targetUrl) || !fs.existsSync(strictWorker)) {
     ...cfg,
     url: finalUrl,
     profileDir,
+    locale: 'ar-AE',
+    viewport: { width: 1280, height: 900 },
+    userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
   });
 
   const child = spawnSync(process.execPath, [strictWorker], {
