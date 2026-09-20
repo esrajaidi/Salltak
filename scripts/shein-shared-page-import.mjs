@@ -216,9 +216,9 @@ if (!allowed(targetUrl)) {
   try {
     context = await chromium.launchPersistentContext(profileDir, {
       headless: cfg.headless !== false,
-      locale: 'en-AE',
-      viewport: { width: 430, height: 932 },
-      userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 Version/18.7 Mobile/15E148 Safari/604.1',
+      locale: String(cfg.locale || 'en-AE'),
+      viewport: { width: Number(cfg.viewport?.width || 430), height: Number(cfg.viewport?.height || 932) },
+      userAgent: String(cfg.userAgent || 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 Version/18.7 Mobile/15E148 Safari/604.1'),
       args: ['--disable-dev-shm-usage'],
     });
 
