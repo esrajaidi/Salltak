@@ -126,6 +126,14 @@ class SheinShareAdapter implements CartSourceAdapter
             );
         }
 
+        if (in_array($browserStatus, ['missing_usd_prices', 'shared_page_unreadable'], true)) {
+            return ImportResult::needsReview(
+                (string) ($browser['message'] ?? 'تم العثور على صفحة مشاركة SHEIN، لكن تعذر تأكيد المنتجات أو أسعار الدولار في هذه المحاولة.'),
+                currency: $fallbackCurrency,
+                meta: $baseMeta
+            );
+        }
+
         if ($httpStatus === 429) {
             return ImportResult::needsReview(
                 'SHEIN منع الطلب المباشر، وتمت محاولة فتح السلة بمتصفح Chromium أيضًا لكن المنتجات لم تُقرأ. جرّب وضع المتصفح المرئي في Mac إذا ظهر تحقق أمني.',
