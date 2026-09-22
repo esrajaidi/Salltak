@@ -338,12 +338,17 @@ if (!allowed(targetUrl)) {
           || /^(items shared by|shared items|add all to cart|cart|share my cart)/i.test(name)
           || /^(العناصر التي تمت مشاركتها|العناصر المشتركة|إضافة الكل|اضافة الكل)/i.test(name);
       };
+      const hasVisiblePriceEvidence = text => {
+        const raw = String(text || '').replace(/,/g, '');
+        return /(?:USD|US\$|\$|AED|SAR|د\.إ|ر\.س|SR)\s*[0-9]+(?:\.[0-9]{1,4})?/i.test(raw)
+          || /[0-9]+(?:\.[0-9]{1,4})?\s*(?:USD|US\$|AED|SAR|د\.إ|ر\.س|SR)/i.test(raw);
+      };
       const productEvidence = root => {
         if (!root?.querySelector) return false;
         const image = root.querySelector('img');
         if (!image) return false;
         const text = String(root.innerText || '').trim();
-        return text.length >= 6 && text.length <= 1800 && /(?:USD|US\$|\$)\s*[0-9]|[0-9]+(?:\.[0-9]+)?\s*(?:USD|US\$)/i.test(text);
+        return text.length >= 6 && text.length <= 1800 && hasVisiblePriceEvidence(text);
       };
       const pruneNestedProductRoots = roots => {
         const unique = [...new Set(roots)].filter(Boolean);
@@ -363,6 +368,7 @@ if (!allowed(targetUrl)) {
       };
       const excluded = /(recommend|suggest|similar|related|guess|you.?may.?like|wishlist|favorite|favourite|recent|viewed|history|search|trend|campaign|marketing)/i;
       const pricePattern = /(?:USD|US\$|\$)\s*[0-9]|[0-9]+(?:\.[0-9]+)?\s*(?:USD|US\$)/i;
+      const anyPriceLine = /(?:USD|US\$|\$|AED|SAR|د\.إ|ر\.س|SR)\s*[0-9]|[0-9]+(?:\.[0-9]+)?\s*(?:USD|US\$|AED|SAR|د\.إ|ر\.س|SR)/i;
       const linkRoots = new Set();
       const imageCandidateRoots = new Set();
       const productLinks = [...document.querySelectorAll('a[href*="-p-"], a[href*="/product"], a[href*="goods"]')];
@@ -384,7 +390,7 @@ if (!allowed(targetUrl)) {
         let parent = img.parentElement;
         for (let depth = 0; parent && depth < 7; depth++, parent = parent.parentElement) {
           const text = String(parent.innerText || '').trim();
-          if (!text || text.length < 8 || text.length > 1800 || !pricePattern.test(text)) continue;
+          if (!text || text.length < 8 || text.length > 1800 || !hasVisiblePriceEvidence(text)) continue;
           const substantialImages = [...parent.querySelectorAll('img')].filter(candidate => {
             const candidateSrc = abs(candidate.currentSrc || candidate.getAttribute('src') || candidate.getAttribute('data-src') || candidate.getAttribute('data-original') || '');
             return isLikelyImageUrl(candidateSrc);
@@ -444,12 +450,12 @@ if (!allowed(targetUrl)) {
         const rawName = link?.getAttribute('aria-label')
           || link?.getAttribute('title')
           || nameNode?.textContent
-          || lines.find(line => !priceLine.test(line) && !ignoredLine.test(line) && line.length > 4)
+          || lines.find(line => !anyPriceLine.test(line) && !ignoredLine.test(line) && line.length > 4)
           || '';
         const name = cleanVisibleProductName(rawName);
         if (isGenericSharedProductName(name)) continue;
 
-        const variantLine = lines.find(line => /\//.test(line) && !/^https?:/i.test(line) && line.length < 180 && !priceLine.test(line)) || '';
+        const variantLine = lines.find(line => /\//.test(line) && !/^https?:/i.test(line) && line.length < 180 && !anyPriceLine.test(line)) || '';
         const parts = variantLine.split('/').map(x => x.trim()).filter(Boolean);
         const color = parts[0] || '';
         const size = parts.length > 1 ? parts.slice(1).join(' / ') : '';
