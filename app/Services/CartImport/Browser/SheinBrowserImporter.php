@@ -3,6 +3,7 @@
 namespace App\Services\CartImport\Browser;
 
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Str;
 
@@ -20,6 +21,7 @@ class SheinBrowserImporter
             ];
         }
 
+        $traceId = (string) Str::uuid();
         $script = base_path('scripts/shein-browser-import.mjs');
         $sharedPageScript = base_path('scripts/shein-shared-page-import.mjs');
         $sharedRetryScript = base_path('scripts/shein-shared-page-retry.mjs');
@@ -40,7 +42,7 @@ class SheinBrowserImporter
         if (is_file($sharedPageScript)) {
             $sharedProfile = storage_path('app/shein-shared-page-profile/'.Str::uuid());
             try {
-                $shared = $this->runWorker($url, $sharedProfile, $sharedPageScript);
+                $shared = $this->runWorker($url, $sharedProfile, $sharedPageScript, 'shared_mobile', $traceId);
             } finally {
                 File::deleteDirectory($sharedProfile);
             }
@@ -52,7 +54,7 @@ class SheinBrowserImporter
                 if (SheinImportedItemCleaner::needsEnrichment($shared['items'])) {
                     $fallbackProfile = storage_path('app/shein-browser-enrichment/'.Str::uuid());
                     try {
-                        $fallback = $this->runWorker($url, $fallbackProfile, $script);
+                        $fallback = $this->runWorker($url, $fallbackProfile, $script, 'shared_enrichment', $traceId);
                     } finally {
                         File::deleteDirectory($fallbackProfile);
                     }
@@ -76,7 +78,7 @@ class SheinBrowserImporter
             if ($shouldRetryShared && is_file($sharedRetryScript)) {
                 $sharedRetryProfile = storage_path('app/shein-shared-page-retry/'.Str::uuid());
                 try {
-                    $sharedRetry = $this->runWorker($url, $sharedRetryProfile, $sharedRetryScript);
+                    $sharedRetry = $this->runWorker($url, $sharedRetryProfile, $sharedRetryScript, 'shared_desktop', $traceId);
                 } finally {
                     File::deleteDirectory($sharedRetryProfile);
                 }
@@ -109,7 +111,7 @@ class SheinBrowserImporter
             }
         }
 
-        $first = $this->runWorker($url, $primaryProfile, $script);
+        $first = $this->runWorker($url, $primaryProfile, $script, 'legacy_primary', $traceId);
         $first = $this->withAttemptMeta($first, 1, false);
         $first['items'] = SheinImportedItemCleaner::clean($first['items'] ?? []);
 
@@ -124,7 +126,7 @@ class SheinBrowserImporter
         $retryProfile = storage_path('app/shein-browser-retry/'.Str::uuid());
 
         try {
-            $retry = $this->runWorker($url, $retryProfile, $script);
+            $retry = $this->runWorker($url, $retryProfile, $script, 'legacy_retry', $traceId);
             $retry = $this->withAttemptMeta($retry, 2, true);
         } finally {
             File::deleteDirectory($retryProfile);
@@ -149,7 +151,22 @@ class SheinBrowserImporter
         return $retry;
     }
 
-    private function runWorker(string $url, string $profileDir, string $script): array
+    private function runWorker(string $url, string $profileDir, string $script, string $stage, string $traceId): array
+    {
+        $startedAt = microtime(true);
+        $result = $this->runWorkerRaw($url, $profileDir, $script);
+
+        Log::channel('stderr')->info('SHEIN import attempt', SheinImportDiagnostics::attempt(
+            $result,
+            $stage,
+            $traceId,
+            (int) round((microtime(true) - $startedAt) * 1000)
+        ));
+
+        return $result;
+    }
+
+    private function runWorkerRaw(string $url, string $profileDir, string $script): array
     {
         $input = json_encode([
             'url' => $url,
