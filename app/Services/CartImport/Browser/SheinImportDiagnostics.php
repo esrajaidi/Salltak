@@ -44,6 +44,7 @@ final class SheinImportDiagnostics
         };
         $count = static fn (mixed $value): int => is_numeric($value)
             ? max(0, min(100_000, (int) $value)) : 0;
+        $responseClasses = is_array($meta['response_class_counts'] ?? null) ? $meta['response_class_counts'] : [];
         $exitCode = $result['exit_code'] ?? null;
 
         return [
@@ -60,6 +61,10 @@ final class SheinImportDiagnostics
             'missing_usd_price_count' => $count($meta['missing_usd_price_count'] ?? 0),
             'network_usd_price_count' => $count($meta['network_usd_price_count'] ?? 0),
             'inspected_response_count' => $count($meta['inspected_response_count'] ?? 0),
+            'share_response_seen' => ($meta['share_response_seen'] ?? false) === true,
+            'share_bound_candidate_count' => $count($meta['share_bound_candidate_count'] ?? 0),
+            'share_response_count' => $count($responseClasses['share'] ?? 0),
+            'other_response_count' => $count($responseClasses['other'] ?? 0),
             'duration_ms' => max(0, min(600_000, $durationMs)),
             'exit_code' => is_int($exitCode) && $exitCode >= 0 && $exitCode <= 255 ? $exitCode : null,
         ];
