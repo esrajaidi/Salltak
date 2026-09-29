@@ -2,9 +2,25 @@ import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import { chromium } from 'playwright-chromium';
+import { summarizeShareEvidence } from './shein-share-evidence.mjs';
 
 const MAX_RESPONSE_BYTES = 2_500_000;
 const MAX_ITEMS = 60;
+
+// The original share context takes precedence over a redirect, which must
+// never silently replace the requested group or share token.
+function shareContextFor(originalUrl, currentUrl) {
+  const context = url => {
+    try {
+      if (!sheinUrl(url)) return {};
+      const query = new URL(url).searchParams;
+      return { groupId: query.get('group_id') || '', shc: query.get('shc') || '' };
+    } catch { return {}; }
+  };
+  const original = context(originalUrl);
+  const current = context(currentUrl);
+  return { groupId: original.groupId || current.groupId || '', shc: original.shc || current.shc || '' };
+}
 
 function out(payload, code = 0) {
   process.stdout.write(JSON.stringify(payload));
@@ -232,6 +248,11 @@ if (!allowed(targetUrl)) {
     };
     const responseTasks = [];
     let inspectedResponseCount = 0;
+    const shareEvidence = {
+      shareResponseSeen: false,
+      shareBoundCandidateCount: 0,
+      responseClassCounts: { share: 0, cart: 0, product: 0, other: 0 },
+    };
 
     page.on('response', response => {
       const task = (async () => {
@@ -246,6 +267,15 @@ if (!allowed(targetUrl)) {
           try { decoded = JSON.parse(text); } catch { return; }
           if (!decoded || typeof decoded !== 'object') return;
           inspectedResponseCount++;
+          const observation = summarizeShareEvidence({
+            networkResponses: [{ url: responseUrl, payload: decoded }],
+            expectedShareContext: shareContextFor(targetUrl, page.url()),
+          });
+          shareEvidence.shareResponseSeen ||= observation.shareResponseSeen;
+          shareEvidence.shareBoundCandidateCount = Math.min(1000, shareEvidence.shareBoundCandidateCount + observation.shareBoundCandidateCount);
+          for (const category of ['share', 'cart', 'product', 'other']) {
+            shareEvidence.responseClassCounts[category] += observation.responseClassCounts[category];
+          }
           const trusted = /(cart|share|landing|bag|basket|checkout)/i.test(responseUrl);
           collectNetworkUsd(decoded, maps, trusted);
         } catch {}
@@ -498,6 +528,13 @@ if (!allowed(targetUrl)) {
     const textEvidence = /items shared by|add all to cart|shared items|shared by|مشاركة|السلة|عناصر مشتركة|إضافة الكل|اضافة الكل/i.test(bodyText);
     const sharedPageEvidence = urlEvidence || textEvidence || (/share/i.test(finalUrl) && visibleProducts.length > 0);
     const visibleProductCount = visibleProducts.length;
+    // Keep only aggregate classifications. No full URL, query string,
+    // response body, item name, or share token is returned in diagnostics.
+    const evidenceMeta = {
+      share_response_seen: shareEvidence.shareResponseSeen,
+      share_bound_candidate_count: shareEvidence.shareBoundCandidateCount,
+      response_class_counts: shareEvidence.responseClassCounts,
+    };
 
     if (!sharedPageEvidence) {
       out({
@@ -508,6 +545,7 @@ if (!allowed(targetUrl)) {
         payloads:[],
         meta:{
           shared_items_landing:false,
+          ...evidenceMeta,
           sharedPageEvidence:false,
           visible_product_count:visibleProductCount,
           candidate_root_count:Number(domSnapshot.candidate_root_count || 0),
@@ -573,6 +611,7 @@ if (!allowed(targetUrl)) {
 
       const diagnosticMeta = {
         shared_items_landing:true,
+        ...evidenceMeta,
         sharedPageEvidence:true,
         visible_product_count:visibleProductCount,
         visible_product_count_before_network_fallback:visibleProductCountBeforeNetworkFallback,
