@@ -32,7 +32,9 @@ class SheinAppOnlyRedirectTest extends TestCase
         $this->actingAs($user)->post('/my-carts/analyze', [
             'source_url'=>'https://onelink.shein.com/55/example?shc=SHARE_A',
         ])->assertOk()->assertSee('رابط OneLink يفتح السلة في تطبيق SHEIN فقط')
-          ->assertSee('جلب سلة من جديد');
+          ->assertSee('جلب سلة من جديد')
+          ->assertSee('رابط المشاركة يفتح داخل تطبيق SHEIN')
+          ->assertSee('فتح رابط المشاركة على الهاتف');
 
         Process::assertRanTimes(fn () => true, 1);
     }
