@@ -50,6 +50,12 @@ class SheinBrowserImporter
             $shared = $this->withAttemptMeta($shared, 1, false);
             $shared['meta']['source'] = 'shein_shared_items_page';
 
+            // If OneLink opens the native app instead of a browser share page,
+            // a second desktop Chromium run cannot supply the missing cart.
+            if (($shared['status'] ?? null) === 'app_only_redirect') {
+                return $shared;
+            }
+
             if (($shared['items'] ?? []) !== []) {
                 if (SheinImportedItemCleaner::needsEnrichment($shared['items'])) {
                     $fallbackProfile = storage_path('app/shein-browser-enrichment/'.Str::uuid());
