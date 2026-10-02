@@ -49,11 +49,36 @@ class SheinUrlResolver
             $current = $next;
 
             if (! $this->isShortSheinLink($current)) {
-                return $current;
+                // A OneLink that opens in the app may redirect desktop browsers
+                // to the storefront instead of the requested shared cart.
+                return $this->matchesRequestedShare($url, $current) ? $current : $url;
             }
         }
 
         return $current;
+    }
+
+
+    private function matchesRequestedShare(string $original, string $redirect): bool
+    {
+        $path = strtolower((string) parse_url($redirect, PHP_URL_PATH));
+        if (! str_contains($path, '/cart/share')
+            && ! str_contains($path, '/share/landing')
+            && ! str_contains($path, '/share_landing')) {
+            return false;
+        }
+
+        parse_str((string) parse_url($original, PHP_URL_QUERY), $originalQuery);
+        parse_str((string) parse_url($redirect, PHP_URL_QUERY), $redirectQuery);
+        $shareToken = trim((string) ($originalQuery['shc'] ?? ''));
+        $targetToken = trim((string) ($redirectQuery['shc'] ?? ''));
+        if ($shareToken !== '') {
+            return $shareToken === $targetToken;
+        }
+
+        $groupId = trim((string) ($originalQuery['group_id'] ?? ''));
+        $targetGroup = trim((string) ($redirectQuery['group_id'] ?? ''));
+        return $groupId !== '' && $groupId === $targetGroup;
     }
 
     private function isShortSheinLink(string $url): bool
