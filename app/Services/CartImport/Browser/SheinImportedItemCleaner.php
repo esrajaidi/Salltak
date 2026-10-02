@@ -38,9 +38,7 @@ class SheinImportedItemCleaner
             if ($fallback === [] && $url !== '') {
                 $fallback = $fallbackByUrl[$url] ?? [];
             }
-            if ($fallback === [] && $sameCount && is_array($fallbackItems[$index] ?? null)) {
-                $fallback = $fallbackItems[$index];
-            }
+            // Do not enrich by list position: the sources can have different ordering.
 
             $name = self::cleanName((string) ($item['name'] ?? ''));
             if ($name === '' || self::isGenericSharedLabel($name)) {
