@@ -3,6 +3,7 @@ import path from 'node:path';
 import process from 'node:process';
 import { chromium } from 'playwright-chromium';
 import { summarizeShareEvidence } from './shein-share-evidence.mjs';
+import { classifyShareDestination } from './shein-final-destination.mjs';
 
 const MAX_RESPONSE_BYTES = 2_500_000;
 const MAX_ITEMS = 60;
@@ -531,7 +532,22 @@ if (!allowed(targetUrl)) {
       response_class_counts: shareEvidence.responseClassCounts,
     };
 
-    if (!sharedPageEvidence) {
+    const finalKind = classifyShareDestination(targetUrl, finalUrl, {
+      visibleProductCount,
+      shareResponseSeen: shareEvidence.shareResponseSeen,
+    });
+
+    if (finalKind === 'app_only_redirect') {
+      out({
+        ok:true,
+        status:'app_only_redirect',
+        message:'هذا الرابط يفتح السلة في تطبيق SHEIN، لكن متصفح الخادم حُوّل إلى واجهة المتجر. لم نتمكن من قراءة منتجات السلة.',
+        final_url:finalUrl,
+        items:[],
+        payloads:[],
+        meta:{...evidenceMeta, final_kind:finalKind, visible_product_count:0, inspected_response_count:inspectedResponseCount},
+      });
+    } else if (!sharedPageEvidence) {
       out({
         ok:true,
         status:'not_shared_page',
