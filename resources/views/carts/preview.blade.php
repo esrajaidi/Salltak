@@ -25,7 +25,7 @@
             <div>
                 <div class="page-kicker">قبل الحفظ</div>
                 <h1 class="page-heading">راجع سلتك</h1>
-                <p class="page-subtitle">الأسعار مستوردة من المتجر وثابتة. تقدر تغيّر الكمية أو تحذف منتج قبل حفظ السلة.</p>
+                <p class="page-subtitle">راجع المنتجات والكمية؛ الأسعار والإجمالي لا يُعتمدان قبل التحقق من السلة كاملة.</p>
             </div>
             <a class="btn btn-ghost icon-text-btn" href="{{ route('carts.create') }}"><x-icon name="arrow-left" size="18" /> تغيير الرابط</a>
         </div>
@@ -87,7 +87,8 @@
 
                     <div id="items" class="cart-preview-items">
                         @foreach($previewItems as $i => $item)
-                            <article class="product-editor immutable-product-card" data-row data-price="{{ (float)($item['unit_price_original'] ?? 0) }}" data-page-item>
+                            @php $linePriceConfirmed = ($canSave || ($item['price_status'] ?? null) === 'confirmed') && ($item['unit_price_original'] ?? null) !== null; @endphp
+                            <article class="product-editor immutable-product-card" data-row data-price="{{ $linePriceConfirmed ? (float)$item['unit_price_original'] : '' }}" data-page-item>
                                 <input type="hidden" name="items[{{ $i }}][key]" value="{{ $item['_key'] }}">
                                 <div class="row g-3 align-items-start">
                                     <div class="col-auto">
@@ -124,8 +125,8 @@
                                             <div class="price-pair mb-2">
                                                 <div class="price-box">
                                                     <span class="price-label">سعر القطعة</span>
-                                                    <div class="price-value original-price">{{ number_format((float)($item['unit_price_original'] ?? 0), 2) }} {{ $currencyLabel }}</div>
-                                                    <div class="price-lock-note"><x-icon name="check" size="14" /> سعر ثابت من المتجر</div>
+                                                    <div class="price-value original-price">{{ $linePriceConfirmed ? number_format((float)$item['unit_price_original'], 2).' '.$currencyLabel : 'السعر غير مؤكد' }}</div>
+                                                    <div class="price-lock-note">{{ $linePriceConfirmed ? 'السعر المستخرج من المتجر' : 'لم يتم توثيق السعر بعد' }}</div>
                                                 </div>
                                                 <div class="price-box lyd">
                                                     <span class="price-label">بالدينار الليبي</span>
@@ -168,7 +169,8 @@
 
                     <div class="d-flex flex-column-reverse flex-sm-row justify-content-end gap-2 mt-4">
                         <a class="btn btn-ghost" href="{{ route('carts.create') }}">إلغاء</a>
-                        <button class="btn btn-primary px-4 icon-text-btn" type="submit"><x-icon name="check" size="18" /> حفظ السلة</button>
+                        @if(!$canSave)<span class="small text-secondary align-self-center">لا يمكن الحفظ قبل التحقق من جميع منتجات السلة وأسعارها.</span>@endif
+                        <button class="btn btn-primary px-4 icon-text-btn" type="submit" @disabled(!$canSave)><x-icon name="check" size="18" /> حفظ السلة</button>
                     </div>
                 </form>
             @endif
@@ -183,6 +185,7 @@
 (() => {
     const rate = {{ (float)$rate }};
     const currencyLabel = @json($currencyLabel);
+    const canSave = @json($canSave);
     const pageSize = 10;
     let currentPage = 1;
 
@@ -193,18 +196,25 @@
         let subtotal = 0;
         const rows = allRows();
         rows.forEach(row => {
-            const price = Math.max(0, parseFloat(row.dataset.price) || 0);
+            const parsedPrice = parseFloat(row.dataset.price);
+            const price = Number.isFinite(parsedPrice) && parsedPrice >= 0 ? parsedPrice : null;
             const qtyInput = row.querySelector('.qty');
             const qty = Math.max(1, Math.min(999, parseInt(qtyInput?.value) || 1));
             if (qtyInput && Number(qtyInput.value) !== qty) qtyInput.value = qty;
+            if (price === null) {
+                row.querySelector('.unit-lyd').textContent = 'غير مؤكد';
+                row.querySelector('.line-total-original').textContent = 'غير مؤكد';
+                row.querySelector('.line-total-lyd').textContent = 'غير مؤكد';
+                return;
+            }
             const line = price * qty;
             subtotal += line;
             row.querySelector('.unit-lyd').textContent = money(price * rate) + ' د.ل';
             row.querySelector('.line-total-original').textContent = money(line) + ' ' + currencyLabel;
             row.querySelector('.line-total-lyd').textContent = money(line * rate) + ' د.ل';
         });
-        document.getElementById('subtotal').textContent = money(subtotal) + ' ' + currencyLabel;
-        document.getElementById('lyd').textContent = money(subtotal * rate) + ' د.ل';
+        document.getElementById('subtotal').textContent = canSave ? money(subtotal) + ' ' + currencyLabel : 'غير مؤكد';
+        document.getElementById('lyd').textContent = canSave ? money(subtotal * rate) + ' د.ل' : 'غير مؤكد';
         document.getElementById('itemsCount').textContent = rows.length;
     }
 
