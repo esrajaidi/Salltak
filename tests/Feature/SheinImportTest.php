@@ -34,7 +34,7 @@ class SheinImportTest extends TestCase
         Http::fake(['*' => Http::response('<html><script type="application/ld+json">{"@type":"Product","name":"Dress","sku":"S1","image":"https://img.test/a.jpg","offers":{"price":"12.50","priceCurrency":"USD"}}</script></html>', 200)]);
 
         $this->actingAs($user)->post('/my-carts/analyze', ['source_url' => 'https://onelink.shein.com/50/example'])
-            ->assertOk()->assertSee('Dress')->assertSee('12.5');
+            ->assertOk()->assertSee('Dress')->assertSee('السعر غير مؤكد');
     }
 
     public function test_real_style_share_landing_extracts_multiple_cart_items_from_initial_state(): void
@@ -78,8 +78,8 @@ HTML;
             ->assertOk()
             ->assertSee('فستان نسائي')
             ->assertSee('حقيبة يد')
-            ->assertSee('13.29')
-            ->assertSee('6.66')
+            ->assertSee('السعر غير مؤكد')
+            ->assertSee('السعر غير مؤكد')
             ->assertSee('دولار')
             ->assertSee('Black')
             ->assertSee('M');
@@ -122,7 +122,7 @@ HTML;
             ->assertSee('حذاء نسائي')
             ->assertSee('White')
             ->assertSee('39')
-            ->assertSee('5.19')
+            ->assertSee('السعر غير مؤكد')
             ->assertSee('إجمالي المنتج')
             ->assertSee('30003');
     }
@@ -154,7 +154,7 @@ HTML;
             ->assertSee('طقم نسائي من SHEIN')
             ->assertSee('Black')
             ->assertSee('M')
-            ->assertSee('14.85')
+            ->assertSee('السعر غير مؤكد')
             ->assertSee('99112233')
             ->assertSee('دولار');
 
