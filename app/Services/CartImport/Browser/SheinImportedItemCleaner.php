@@ -16,16 +16,14 @@ class SheinImportedItemCleaner
 
             $id = trim((string) ($fallback['external_id'] ?? ''));
             if ($id !== '') {
-                $fallbackById[$id] = $fallback;
+                $fallbackById[$id][] = $fallback;
             }
 
             $url = self::normalizeUrl((string) ($fallback['product_url'] ?? ''));
             if ($url !== '') {
-                $fallbackByUrl[$url] = $fallback;
+                $fallbackByUrl[$url][] = $fallback;
             }
         }
-
-        $sameCount = count($items) > 0 && count($items) === count($fallbackItems);
 
         foreach ($items as $index => $item) {
             if (! is_array($item)) {
@@ -34,11 +32,16 @@ class SheinImportedItemCleaner
 
             $id = trim((string) ($item['external_id'] ?? ''));
             $url = self::normalizeUrl((string) ($item['product_url'] ?? ''));
-            $fallback = $id !== '' ? ($fallbackById[$id] ?? []) : [];
-            if ($fallback === [] && $url !== '') {
-                $fallback = $fallbackByUrl[$url] ?? [];
+            $fallback = [];
+            // Only enrich an item from the same verified variant. Neither
+            // the product ID alone nor the row's position identifies a SKU.
+            $candidates = $id !== '' ? ($fallbackById[$id] ?? []) : ($url !== '' ? ($fallbackByUrl[$url] ?? []) : []);
+            foreach ($candidates as $candidate) {
+                if (self::sameVariant($item, $candidate)) {
+                    $fallback = $candidate;
+                    break;
+                }
             }
-            // Do not enrich by list position: the sources can have different ordering.
 
             $name = self::cleanName((string) ($item['name'] ?? ''));
             if ($name === '' || self::isGenericSharedLabel($name)) {
@@ -59,6 +62,27 @@ class SheinImportedItemCleaner
         }
 
         return array_values($items);
+    }
+
+    private static function sameVariant(array $item, array $candidate): bool
+    {
+        $itemId = trim((string) ($item['external_id'] ?? ''));
+        $candidateId = trim((string) ($candidate['external_id'] ?? ''));
+        if ($itemId !== '' && $candidateId !== '' && $itemId !== $candidateId) {
+            return false;
+        }
+
+        $identityKnown = false;
+        foreach (['sku_id', 'skc_id', 'variant', 'color', 'size'] as $field) {
+            $left = trim((string) ($item[$field] ?? ''));
+            $right = trim((string) ($candidate[$field] ?? ''));
+            if ($left !== $right) {
+                return false;
+            }
+            $identityKnown = $identityKnown || $left !== '';
+        }
+
+        return $identityKnown;
     }
 
     public static function needsEnrichment(array $items): bool
