@@ -60,8 +60,14 @@
             @if(empty($previewItems))
                 <div class="empty-state-card text-center py-5">
                     <div class="empty-state-icon mx-auto mb-3"><x-icon name="carts" size="30" /></div>
-                    <h2 class="h5 fw-bold">ما لقيناش منتجات قابلة للحفظ</h2>
-                    <p class="text-secondary mb-2">أعد جلب الرابط، ولو استمرت المشكلة تأكد أن رابط مشاركة السلة مازال صالح.</p>
+                    @if(($result->meta['browser_status'] ?? '') === 'app_only_redirect')
+                        <h2 class="h5 fw-bold">رابط المشاركة يفتح داخل تطبيق SHEIN</h2>
+                        <p class="text-secondary mb-2">متصفح سلتك وصل إلى واجهة المتجر بدل قائمة المنتجات. هذا لا يعني أن سلتك في SHEIN فارغة. لا يمكن حفظ المنتجات أو حساب الأسعار قبل قراءتها بصورة موثوقة.</p>
+                        <a class="btn btn-outline-primary btn-sm mb-3" href="{{ $sourceUrl }}" target="_blank" rel="noopener noreferrer">فتح رابط المشاركة على الهاتف</a>
+                    @else
+                        <h2 class="h5 fw-bold">ما لقيناش منتجات قابلة للحفظ</h2>
+                        <p class="text-secondary mb-2">تعذر تأكيد المنتجات من هذا الرابط. قد تكون المشاركة صالحة داخل تطبيق المتجر حتى لو لم يعرضها المتصفح.</p>
+                    @endif
                     <div class="small text-secondary mb-3">عملة التسعير المعتمدة: <strong>{{ $currencyLabel }}</strong></div>
                     <a class="btn btn-primary" href="{{ route('carts.create') }}">جلب سلة من جديد</a>
                 </div>
