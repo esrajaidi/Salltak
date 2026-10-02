@@ -26,6 +26,8 @@ jobs:
           php -l app/Http/Controllers/CartController.php
           php -l app/Http/Controllers/OrderController.php
           php -l app/Services/CartImport/SheinUrlResolver.php
+          php -l app/Services/CartImport/Browser/SheinImportDiagnostics.php
+          php -l app/Services/CartImport/Adapters/SheinShareAdapter.php
           php -l tests/Unit/SheinUrlResolverTest.php
           php -l tests/Feature/SheinOnelinkResolverTest.php
           php -l tests/Feature/CartFlowTest.php
@@ -36,6 +38,7 @@ jobs:
       - name: Node syntax and importer safety
         run: |
           node --check scripts/shein-shared-page-import.mjs
+          node --test tests/static/shein-final-destination.test.mjs
           node --test tests/static/shein-shared-page-safety.test.mjs
           node --test tests/static/shein-share-evidence.test.mjs
           node --test tests/static/shein-share-schema-shape.test.mjs
