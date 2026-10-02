@@ -28,10 +28,11 @@ class CartFlowTest extends TestCase
                 'exchange_rate'=>7,
                 'import_status'=>'success',
                 'import_message'=>'ok',
+                'share_complete'=>true,'expected_count'=>2,
                 'created_at'=>now()->timestamp,
                 'items'=>[
-                    ['_key'=>'item-a','name'=>'Product A','quantity'=>1,'unit_price_original'=>10],
-                    ['_key'=>'item-b','name'=>'Product B','quantity'=>1,'unit_price_original'=>5],
+                    ['_key'=>'item-a','name'=>'Product A','quantity'=>1,'unit_price_original'=>10,'price_status'=>'confirmed','price_source'=>'network_exact_sku'],
+                    ['_key'=>'item-b','name'=>'Product B','quantity'=>1,'unit_price_original'=>5,'price_status'=>'confirmed','price_source'=>'network_exact_sku'],
                 ],
             ],
         ];
@@ -68,9 +69,10 @@ class CartFlowTest extends TestCase
                 'exchange_rate'=>7,
                 'import_status'=>'success',
                 'import_message'=>'ok',
+                'share_complete'=>true,'expected_count'=>1,
                 'created_at'=>now()->timestamp,
                 'items'=>[
-                    ['_key'=>'long-item','external_id'=>'415154902','name'=>$longName,'quantity'=>1,'unit_price_original'=>3.97],
+                    ['_key'=>'long-item','external_id'=>'415154902','name'=>$longName,'quantity'=>1,'unit_price_original'=>3.97,'price_status'=>'confirmed','price_source'=>'network_exact_sku'],
                 ],
             ],
         ];
@@ -99,8 +101,10 @@ class CartFlowTest extends TestCase
             'cart_import_preview.'.$token => [
                 'user_id'=>$user->id,'source_url'=>'https://m.shein.com/ar/cart/share/landing?group_id=456',
                 'store_id'=>$store->id,'source_currency'=>'USD','exchange_rate'=>7,'import_status'=>'success','import_message'=>'ok',
+                'share_complete'=>true,'expected_count'=>1,
                 'created_at'=>now()->timestamp,
-                'items'=>[['_key'=>'locked-price','name'=>'Locked Product','quantity'=>1,'unit_price_original'=>19.95]],
+                'share_complete'=>true,'expected_count'=>1,
+                'items'=>[['_key'=>'locked-price','name'=>'Locked Product','quantity'=>1,'unit_price_original'=>19.95,'price_status'=>'confirmed','price_source'=>'network_exact_sku']],
             ],
         ])->post('/my-carts', [
             'preview_token'=>$token,
@@ -111,6 +115,41 @@ class CartFlowTest extends TestCase
         $item = $user->carts()->firstOrFail()->items()->firstOrFail();
         $this->assertSame('19.95', $item->unit_price_original);
         $this->assertSame('39.90', $item->line_total_original);
+    }
+
+    public function test_unverified_shein_share_cannot_be_saved(): void
+    {
+        $user = User::factory()->create();
+        $token = str_repeat('d', 48);
+        $this->actingAs($user)->withSession([
+            'cart_import_preview.'.$token => [
+                'user_id'=>$user->id,'source_url'=>'https://onelink.shein.com/55/demo',
+                'source_currency'=>'USD','exchange_rate'=>7,'import_status'=>'success',
+                'share_complete'=>false,'expected_count'=>1,
+                'created_at'=>now()->timestamp,
+                'items'=>[['_key'=>'unverified','name'=>'Product','quantity'=>1,'unit_price_original'=>10]],
+            ],
+        ])->post('/my-carts', [
+            'preview_token'=>$token,'items'=>[['key'=>'unverified','quantity'=>1]],
+        ])->assertSessionHasErrors('items');
+        $this->assertSame(0, $user->carts()->count());
+    }
+
+    public function test_legacy_unverified_shein_cart_cannot_be_sent_as_new_order(): void
+    {
+        $user = User::factory()->create();
+        $cart = $user->carts()->create([
+            'source_url'=>'https://m.shein.com/ar/cart/share/landing?group_id=99',
+            'source_currency'=>'USD','exchange_rate'=>7,
+            'subtotal_original'=>10,'total_lyd'=>70,
+            'status'=>'saved','import_status'=>'success',
+        ]);
+        $cart->items()->create([
+            'name'=>'Product','quantity'=>1,'unit_price_original'=>10,
+            'line_total_original'=>10,'currency'=>'USD',
+        ]);
+        $this->actingAs($user)->post(route('orders.from-cart', $cart))->assertSessionHasErrors('order');
+        $this->assertSame(0, $user->orders()->count());
     }
 
     public function test_user_cannot_open_another_users_cart(): void
