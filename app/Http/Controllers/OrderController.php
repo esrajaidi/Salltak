@@ -49,7 +49,7 @@ class OrderController extends Controller
             }
 
             $lockedCart->load('items');
-            if ($lockedCart->status !== 'saved' || $lockedCart->items->isEmpty()) {
+            if ($lockedCart->status !== 'saved' || $lockedCart->items->isEmpty() || (\App\Services\CartImport\SheinPreviewGuard::isSheinShare((string)$lockedCart->source_url) && $lockedCart->import_status !== 'verified_share')) {
                 return ['order' => null, 'created' => false];
             }
 
