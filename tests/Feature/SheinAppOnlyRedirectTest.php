@@ -34,6 +34,6 @@ class SheinAppOnlyRedirectTest extends TestCase
         ])->assertOk()->assertSee('رابط OneLink يفتح السلة في تطبيق SHEIN فقط')
           ->assertSee('جلب سلة من جديد');
 
-        Process::assertRanTimes(1);
+        Process::assertRanTimes(fn () => true, 1);
     }
 }
