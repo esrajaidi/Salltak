@@ -386,9 +386,10 @@ if (!allowed(targetUrl)) {
       };
       const canonicalProductKey = product => {
         const img = imageKey(product.image_url);
-        if (img) return `img:${img}`;
         const id = String(product.external_id || '').trim();
-        if (id) return `id:${id}`;
+        const variant = normalizeName([product.variant, product.color, product.size].filter(Boolean).join('|'));
+        if (id) return `id:${id}|variant:${variant}`;
+        if (img) return `img:${img}|variant:${variant}`;
         try {
           const u = new URL(String(product.product_url || ''), location.href);
           if (u.pathname) return `url:${u.pathname.toLowerCase()}`;
@@ -434,8 +435,6 @@ if (!allowed(targetUrl)) {
       const roots = pruneNestedProductRoots([...imageCandidateRoots]);
       const result = [];
       const seenCanonical = new Set();
-      const seenIds = new Set();
-      const seenImages = new Set();
 
       for (const root of roots) {
         const lineage = [];
@@ -505,11 +504,7 @@ if (!allowed(targetUrl)) {
         const key = canonicalProductKey(product);
         const imgKey = imageKey(image);
         if (!key || seenCanonical.has(key)) continue;
-        if (externalId && seenIds.has(externalId)) continue;
-        if (imgKey && seenImages.has(imgKey)) continue;
         seenCanonical.add(key);
-        if (externalId) seenIds.add(externalId);
-        if (imgKey) seenImages.add(imgKey);
         result.push(product);
         if (result.length >= MAX_ITEMS) break;
       }
@@ -563,25 +558,12 @@ if (!allowed(targetUrl)) {
       for (const product of visibleProducts) {
         let price = Number(product.visible_usd_price || 0) || 0;
 
-        if (!(price > 0)) {
-          for (const id of product.lookup_ids || []) {
-            const matched = Number(maps.networkUsdById.get(String(id)) || 0) || 0;
-            if (matched > 0) {
-              price = matched;
-              break;
-            }
-          }
-        }
-
-        if (!(price > 0)) price = fuzzyNamePrice(product.name, maps.networkUsdByName);
-        if (!(price > 0)) {
-          const imageKeyValue = normalizeImageKey(product.image_url);
-          price = Number(maps.networkUsdByImage.get(imageKeyValue) || 0) || 0;
-        }
+        // USD from another response, similar name or shared image is not
+        // evidence that this variant has the same price.
 
         if (!(price > 0)) {
           missingUsdPriceCount++;
-          continue;
+          price = null;
         }
 
         let resolvedImage = isLikelyImageUrl(product.image_url) ? product.image_url : '';
@@ -606,6 +588,8 @@ if (!allowed(targetUrl)) {
           quantity: 1,
           unit_price_original: price,
           currency: 'USD',
+          price_status: 'unconfirmed',
+          price_source: null,
         });
       }
 
@@ -641,9 +625,9 @@ if (!allowed(targetUrl)) {
         out({
           ok:true,
           status:'missing_usd_prices',
-          message:`وجدنا منتجات في رابط SHEIN (${visibleProductCount}) لكن تعذر تأكيد السعر بالدولار لبعضها. لن نعتبر سعر AED/SAR سعرًا بالدولار.`,
+          message:`ظهر ${visibleProductCount} عنصرًا في الصفحة، لكن تعذر تأكيد الأسعار وقائمة المشاركة. المعاينة للقراءة فقط.`,
           final_url:finalUrl,
-          items:[],
+          items:items.slice(0, MAX_ITEMS),
           payloads:[],
           meta:diagnosticMeta,
         });
