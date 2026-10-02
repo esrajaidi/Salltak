@@ -117,6 +117,10 @@ class CartController extends Controller
                 ->withErrors(['source_url' => 'انتهت جلسة مراجعة السلة. أعد جلب السلة من الرابط.']);
         }
 
+        if (! \App\Services\CartImport\SheinPreviewGuard::canSave($snapshot)) {
+            return back()->withErrors(['items' => 'لا يمكن حفظ سلة SHEIN قبل تأكيد كل المنتجات والأسعار.']);
+        }
+
         $snapshotItems = collect($snapshot['items'] ?? [])->keyBy('_key');
         $selectedItems = [];
         $seenKeys = [];
