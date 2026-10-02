@@ -126,7 +126,7 @@ class SheinShareAdapter implements CartSourceAdapter
             );
         }
 
-        if (in_array($browserStatus, ['missing_usd_prices', 'shared_page_unreadable'], true)) {
+        if (in_array($browserStatus, ['missing_usd_prices', 'shared_page_unreadable', 'app_only_redirect'], true)) {
             return ImportResult::needsReview(
                 (string) ($browser['message'] ?? 'تم العثور على صفحة مشاركة SHEIN، لكن تعذر تأكيد المنتجات أو أسعار الدولار في هذه المحاولة.'),
                 currency: $fallbackCurrency,
