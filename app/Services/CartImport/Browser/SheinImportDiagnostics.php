@@ -12,7 +12,7 @@ final class SheinImportDiagnostics
     {
         $meta = is_array($result['meta'] ?? null) ? $result['meta'] : [];
         $allowedStages = ['shared_mobile', 'shared_desktop', 'shared_enrichment', 'legacy_primary', 'legacy_retry'];
-        $allowedStatuses = ['loaded', 'missing_usd_prices', 'shared_page_unreadable', 'not_shared_page', 'challenge', 'failed', 'unavailable', 'disabled', 'invalid_url', 'timeout', 'empty'];
+        $allowedStatuses = ['loaded', 'missing_usd_prices', 'shared_page_unreadable', 'app_only_redirect', 'not_shared_page', 'challenge', 'failed', 'unavailable', 'disabled', 'invalid_url', 'timeout', 'empty'];
         $stage = in_array($stage, $allowedStages, true) ? $stage : 'other';
         $status = (string) ($result['status'] ?? '');
         $status = in_array($status, $allowedStatuses, true) ? $status : 'other';
@@ -23,7 +23,7 @@ final class SheinImportDiagnostics
         $finalHost = $isShein ? $host : ($host === '' ? 'unavailable' : 'external');
         $path = $isShein ? strtolower((string) parse_url($url, PHP_URL_PATH)) : '';
         $finalPage = match (true) {
-            str_contains($path, '/cart/share'), str_contains($path, '/share/landing') => 'share_landing',
+            str_contains($path, '/cart/share'), str_contains($path, '/share/landing'), str_contains($path, '/share_landing') => 'share_landing',
             str_contains($path, '/cart') => 'cart',
             str_contains($path, '/product'), str_contains($path, '-p-') => 'product',
             $host === '' => 'unavailable',
@@ -33,6 +33,7 @@ final class SheinImportDiagnostics
             'loaded' => 'none',
             'missing_usd_prices' => 'usd_price_unconfirmed',
             'shared_page_unreadable' => 'no_visible_products',
+            'app_only_redirect' => 'one_link_opened_storefront',
             'not_shared_page' => 'not_share_landing',
             'challenge' => 'security_challenge',
             'unavailable' => 'worker_unavailable',
