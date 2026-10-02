@@ -1,0 +1,38 @@
+name: SHEIN importer safety
+
+on:
+  push:
+    branches:
+      - fix/shein-preview-guard-20261001
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  static-safety:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+      - name: PHP syntax
+        run: |
+          php -l app/Services/CartImport/SheinPreviewGuard.php
+          php -l app/Services/CartImport/Browser/SheinImportedItemCleaner.php
+          php -l app/Http/Controllers/CartController.php
+          php -l app/Http/Controllers/OrderController.php
+          php -l tests/Feature/CartFlowTest.php
+      - name: Guard and identity checks
+        run: |
+          php tests/static/shein-preview-guard-v1022.php
+          php tests/static/shein-cleaner-identity.php
+      - name: Node syntax and importer safety
+        run: |
+          node --check scripts/shein-shared-page-import.mjs
+          node --test tests/static/shein-shared-page-safety.test.mjs
+          node --test tests/static/shein-share-evidence.test.mjs
+          node --test tests/static/shein-share-schema-shape.test.mjs
