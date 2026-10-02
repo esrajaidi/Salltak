@@ -31,13 +31,13 @@
         </div>
 
         <div class="surface-card-elevated reveal is-visible p-3 p-md-4">
-            <div class="alert {{ $result->status === 'success' ? 'alert-success' : 'alert-warning' }} border-0 import-alert mb-3">
-                <div class="import-alert-icon"><x-icon :name="$result->status === 'success' ? 'check' : 'warning'" size="22" /></div>
+            <div class="alert {{ $canSave && $result->status === 'success' ? 'alert-success' : 'alert-warning' }} border-0 import-alert mb-3">
+                <div class="import-alert-icon"><x-icon :name="$canSave && $result->status === 'success' ? 'check' : 'warning'" size="22" /></div>
                 <div class="flex-grow-1">
-                    <div class="fw-bold">{{ $result->status === 'success' ? 'تم جلب السلة' : 'تحتاج مراجعة' }}</div>
+                    <div class="fw-bold">{{ $canSave && $result->status === 'success' ? 'تم جلب السلة' : 'تحتاج مراجعة' }}</div>
                     <div class="small mt-1">{{ $result->message }}</div>
-                    @if($result->status === 'success')
-                        <div class="small mt-1">تم العثور على <strong>{{ count($previewItems) }}</strong> منتج/منتجات من السلة.</div>
+                    @if(!empty($previewItems))
+                        <div class="small mt-1">عدد العناصر في المعاينة: <strong>{{ count($previewItems) }}</strong>؛ لا يعني ذلك اكتمال السلة.</div>
                     @endif
                 </div>
             </div>
@@ -80,9 +80,9 @@
                     <div class="cart-toolbar d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 mb-3">
                         <div>
                             <h2 class="h5 fw-bold mb-1">منتجات السلة</h2>
-                            <div class="small text-secondary">سعر ثابت من المتجر — لا يمكن تغييره من حساب العميل.</div>
+                            <div class="small text-secondary">الأسعار غير المؤكدة لا تدخل في إجمالي نهائي ولا يمكن تعديلها يدويًا.</div>
                         </div>
-                        <div class="price-lock-pill"><x-icon name="check" size="16" /> الأسعار محمية</div>
+                        <div class="price-lock-pill"><x-icon :name="$canSave ? 'check' : 'warning'" size="16" /> {{ $canSave ? 'الأسعار محمية' : 'يلزم التحقق من الأسعار' }}</div>
                     </div>
 
                     <div id="items" class="cart-preview-items">
