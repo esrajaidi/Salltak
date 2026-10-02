@@ -31,6 +31,7 @@ jobs:
           php -l tests/Unit/SheinUrlResolverTest.php
           php -l tests/Feature/SheinOnelinkResolverTest.php
           php -l tests/Feature/CartFlowTest.php
+          php -l tests/Feature/SheinAppOnlyRedirectTest.php
       - name: Guard and identity checks
         run: |
           php tests/static/shein-preview-guard-v1022.php
@@ -73,4 +74,4 @@ jobs:
           cp .env.example .env
           php artisan key:generate
       - name: URL resolver and cart integrity feature tests
-        run: php artisan test tests/Unit/SheinUrlResolverTest.php tests/Feature/SheinOnelinkResolverTest.php tests/Feature/CartFlowTest.php tests/Feature/SheinImportTest.php
+        run: php artisan test tests/Unit/SheinUrlResolverTest.php tests/Feature/SheinOnelinkResolverTest.php tests/Feature/SheinAppOnlyRedirectTest.php tests/Feature/CartFlowTest.php tests/Feature/SheinImportTest.php
