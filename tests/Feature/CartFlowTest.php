@@ -103,7 +103,6 @@ class CartFlowTest extends TestCase
                 'store_id'=>$store->id,'source_currency'=>'USD','exchange_rate'=>7,'import_status'=>'success','import_message'=>'ok',
                 'share_complete'=>true,'expected_count'=>1,
                 'created_at'=>now()->timestamp,
-                'share_complete'=>true,'expected_count'=>1,
                 'items'=>[['_key'=>'locked-price','name'=>'Locked Product','quantity'=>1,'unit_price_original'=>19.95,'price_status'=>'confirmed','price_source'=>'network_exact_sku']],
             ],
         ])->post('/my-carts', [
