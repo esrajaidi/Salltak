@@ -57,7 +57,9 @@ class CartController extends Controller
                     'color' => $item['color'] ?? null,
                     'size' => $item['size'] ?? null,
                     'quantity' => max(1, min(999, (int) ($item['quantity'] ?? 1))),
-                    'unit_price_original' => max(0, (float) ($item['unit_price_original'] ?? 0)),
+                    'unit_price_original' => isset($item['unit_price_original']) && is_numeric($item['unit_price_original']) ? max(0, (float) $item['unit_price_original']) : null,
+                    'price_status' => $item['price_status'] ?? 'unconfirmed',
+                    'price_source' => $item['price_source'] ?? null,
                 ];
             })
             ->values()
@@ -70,6 +72,8 @@ class CartController extends Controller
             'source_currency' => $currency,
             'exchange_rate' => $rate,
             'import_status' => $result->status,
+            'share_complete' => ($result->meta['share_complete'] ?? false) === true,
+            'expected_count' => isset($result->meta['expected_count']) && is_int($result->meta['expected_count']) ? $result->meta['expected_count'] : null,
             'import_message' => $result->message,
             'items' => $previewItems,
             'created_at' => now()->timestamp,
@@ -83,6 +87,7 @@ class CartController extends Controller
             'rate' => $rate,
             'previewToken' => $previewToken,
             'previewItems' => $previewItems,
+            'canSave' => \App\Services\CartImport\SheinPreviewGuard::canSave($request->session()->get('cart_import_preview.'.$previewToken)),
         ]);
     }
 
@@ -159,7 +164,7 @@ class CartController extends Controller
                 'subtotal_original' => $subtotal,
                 'total_lyd' => $this->money->toLyd($subtotal, $rate),
                 'status' => 'saved',
-                'import_status' => $snapshot['import_status'] ?? 'needs_review',
+                'import_status' => \App\Services\CartImport\SheinPreviewGuard::isSheinShare((string) $snapshot['source_url']) ? 'verified_share' : ($snapshot['import_status'] ?? 'needs_review'),
                 'import_message' => $snapshot['import_message'] ?? null,
             ]);
 
