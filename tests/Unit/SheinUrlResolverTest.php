@@ -35,6 +35,30 @@ class SheinUrlResolverTest extends TestCase
         Http::assertSentCount(1);
     }
 
+
+    public function test_onelink_does_not_accept_redirect_to_homepage(): void
+    {
+        $short = 'https://onelink.shein.com/55/example?shc=test-share';
+        Http::fake([$short => Http::response('', 302, ['Location' => 'https://m.shein.com/ar/'])]);
+        $this->assertSame($short, (new SheinUrlResolver(new StoreUrlClassifier()))->resolve($short));
+    }
+
+    public function test_onelink_does_not_lose_the_share_token_on_redirect(): void
+    {
+        $short = 'https://onelink.shein.com/55/example?shc=test-share';
+        $target = 'https://m.shein.com/ar/cart/share/landing?shc=unrelated-share&group_id=44';
+        Http::fake([$short => Http::response('', 302, ['Location' => $target])]);
+        $this->assertSame($short, (new SheinUrlResolver(new StoreUrlClassifier()))->resolve($short));
+    }
+
+    public function test_onelink_can_follow_matching_share_landing_redirect(): void
+    {
+        $short = 'https://onelink.shein.com/55/example?shc=test-share';
+        $target = 'https://m.shein.com/ar/share_landing?shc=test-share&group_id=44';
+        Http::fake([$short => Http::response('', 302, ['Location' => $target])]);
+        $this->assertSame($target, (new SheinUrlResolver(new StoreUrlClassifier()))->resolve($short));
+    }
+
     public function test_onelink_rejects_redirects_outside_shein(): void
     {
         $short = 'https://onelink.shein.com/52/example?shc=abc';
