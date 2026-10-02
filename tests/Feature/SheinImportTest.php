@@ -158,7 +158,7 @@ HTML;
             ->assertSee('99112233')
             ->assertSee('دولار');
 
-        Process::assertRan([(string) config('services.cart_import.shein_browser.node_binary', 'node'), base_path('scripts/shein-browser-import.mjs')]);
+        Process::assertRan([(string) config('services.cart_import.shein_browser.node_binary', 'node'), base_path('scripts/shein-shared-page-import.mjs')]);
     }
 
     public function test_playwright_challenge_shows_mac_headed_mode_instruction(): void
