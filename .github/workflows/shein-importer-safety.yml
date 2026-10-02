@@ -25,6 +25,8 @@ jobs:
           php -l app/Services/CartImport/Browser/SheinImportedItemCleaner.php
           php -l app/Http/Controllers/CartController.php
           php -l app/Http/Controllers/OrderController.php
+          php -l app/Services/CartImport/SheinUrlResolver.php
+          php -l tests/Unit/SheinUrlResolverTest.php
           php -l tests/Feature/CartFlowTest.php
       - name: Guard and identity checks
         run: |
@@ -36,3 +38,35 @@ jobs:
           node --test tests/static/shein-shared-page-safety.test.mjs
           node --test tests/static/shein-share-evidence.test.mjs
           node --test tests/static/shein-share-schema-shape.test.mjs
+
+  laravel-import-tests:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ALLOW_EMPTY_PASSWORD: 'yes'
+          MYSQL_DATABASE: salltak_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, pdo_mysql, intl, zip
+          coverage: none
+      - uses: ramsey/composer-install@v3
+        with:
+          dependency-versions: locked
+      - name: Create application key
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+      - name: URL resolver and cart integrity feature tests
+        run: php artisan test tests/Unit/SheinUrlResolverTest.php tests/Feature/CartFlowTest.php tests/Feature/SheinImportTest.php
