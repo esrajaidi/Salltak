@@ -2,7 +2,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import { spawnSync } from 'node:child_process';
-import { chromium } from 'playwright-chromium';
 
 async function readInput() {
   let raw = '';
@@ -37,37 +36,19 @@ if (!isSheinUrl(targetUrl) || !fs.existsSync(strictWorker)) {
   process.exitCode = 2;
 } else {
   fs.mkdirSync(profileDir, { recursive: true });
-  let finalUrl = targetUrl;
-  let context;
 
-  try {
-    context = await chromium.launchPersistentContext(profileDir, {
-      headless: cfg.headless !== false,
-      locale: 'ar-AE',
-      viewport: { width: 1280, height: 900 },
-      userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
-      args: ['--disable-dev-shm-usage'],
-    });
-
-    const page = context.pages()[0] || await context.newPage();
-    await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: timeoutMs });
-    try { await page.waitForLoadState('networkidle', { timeout: Math.min(10_000, timeoutMs) }); } catch {}
-    await page.waitForTimeout(1800);
-
-    if (isSheinUrl(page.url())) finalUrl = page.url();
-  } catch {
-    finalUrl = targetUrl;
-  } finally {
-    if (context) await context.close().catch(() => {});
-  }
-
+  // The direct shared-cart URL is known before this retry begins. Running a
+  // separate Chrome preflight only repeats the navigation and adds latency.
+  // Retry the strict worker once with a macOS Safari identity because real
+  // desktop Safari can receive a different SHEIN landing experience.
+  const safariUserAgent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Safari/605.1.15';
   const childInput = JSON.stringify({
     ...cfg,
-    url: finalUrl,
+    url: targetUrl,
     profileDir,
     locale: 'ar-AE',
-    viewport: { width: 1280, height: 900 },
-    userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+    viewport: { width: 1440, height: 960 },
+    userAgent: safariUserAgent,
   });
 
   const child = spawnSync(process.execPath, [strictWorker], {
