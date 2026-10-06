@@ -204,9 +204,13 @@ class SheinShareAdapter implements CartSourceAdapter
         if ($this->isSharedCartUrl($sourceUrl)) {
             // Shared-cart links are fail-closed: generic JSON-LD, product state and
             // recommendation lists are not evidence that an item belongs to the share.
+            foreach ($this->extractExplicitSharePayloads($html) as $scope) {
+                $this->walkSheinPayload($scope, $items, ['cartShareData'], $sourceUrl, $fallbackCurrency);
+            }
+
             foreach ($this->extractEmbeddedJsonPayloads($html) as $payload) {
                 foreach ($this->shareScopedNodes($payload) as $scope) {
-                    $this->walkSheinPayload($scope, $items, [], $sourceUrl, $fallbackCurrency);
+                    $this->walkSheinPayload($scope, $items, ['cartShareData'], $sourceUrl, $fallbackCurrency);
                 }
             }
 
@@ -282,6 +286,33 @@ class SheinShareAdapter implements CartSourceAdapter
         }
 
         return $scopes;
+    }
+
+    private function extractExplicitSharePayloads(string $html): array
+    {
+        $payloads = [];
+
+        if (! preg_match_all('#<script[^>]*>(.*?)</script>#is', $html, $matches)) {
+            return $payloads;
+        }
+
+        foreach ($matches[1] as $rawScript) {
+            $text = html_entity_decode(trim($rawScript), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            if ($text === '') {
+                continue;
+            }
+
+            foreach (['cartShareData', 'shareCartData', 'cartShareInfo', 'shareCartInfo'] as $marker) {
+                foreach ($this->extractAssignedJson($text, $marker) as $json) {
+                    $decoded = json_decode($json, true);
+                    if (is_array($decoded)) {
+                        $payloads[] = $decoded;
+                    }
+                }
+            }
+        }
+
+        return $payloads;
     }
 
     private function extractJsonLd(string $html, array &$items, string $sourceUrl, string $fallbackCurrency): void
