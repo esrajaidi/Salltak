@@ -43,6 +43,24 @@ class SheinImportTest extends TestCase
             ->assertSee('تعذر تأكيد عناصر السلة');
     }
 
+    public function test_direct_share_http_request_uses_desktop_safari_identity(): void
+    {
+        $user = $this->seedShein();
+        Http::fake(['*' => Http::response('<html><body>shell</body></html>', 200)]);
+        Process::fake(['*' => Process::result(output: json_encode([
+            'ok'=>true,'status'=>'shared_page_unreadable','items'=>[],'payloads'=>[],
+        ]))]);
+
+        $this->actingAs($user)->post('/my-carts/analyze', ['source_url' => self::SHARE_URL])->assertOk();
+
+        Http::assertSent(fn ($request) =>
+            $request->hasHeader(
+                'User-Agent',
+                'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Safari/605.1.15'
+            )
+        );
+    }
+
     public function test_real_style_share_landing_extracts_multiple_cart_items_from_initial_state(): void
     {
         $user = $this->seedShein();
