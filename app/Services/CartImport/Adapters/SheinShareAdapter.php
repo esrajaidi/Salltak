@@ -201,17 +201,87 @@ class SheinShareAdapter implements CartSourceAdapter
     {
         $items = [];
 
-        // Shared-cart state is preferred because it contains the real quantity/variant.
+        if ($this->isSharedCartUrl($sourceUrl)) {
+            // Shared-cart links are fail-closed: generic JSON-LD, product state and
+            // recommendation lists are not evidence that an item belongs to the share.
+            foreach ($this->extractEmbeddedJsonPayloads($html) as $payload) {
+                foreach ($this->shareScopedNodes($payload) as $scope) {
+                    $this->walkSheinPayload($scope, $items, [], $sourceUrl, $fallbackCurrency);
+                }
+            }
+
+            return $this->deduplicate($items);
+        }
+
         foreach ($this->extractEmbeddedJsonPayloads($html) as $payload) {
             $this->walkSheinPayload($payload, $items, [], $sourceUrl, $fallbackCurrency);
         }
 
-        // Product JSON-LD is only a fallback for older/simple SHEIN links.
+        // Product JSON-LD is only a fallback for older/simple non-share SHEIN links.
         if ($items === []) {
             $this->extractJsonLd($html, $items, $sourceUrl, $fallbackCurrency);
         }
 
         return $this->deduplicate($items);
+    }
+
+    private function isSharedCartUrl(string $url): bool
+    {
+        $path = strtolower((string) parse_url($url, PHP_URL_PATH));
+        parse_str((string) parse_url($url, PHP_URL_QUERY), $query);
+
+        return $this->classifier->host($url) === 'onelink.shein.com'
+            || str_contains($path, '/cart/share')
+            || str_contains($path, '/share/landing')
+            || str_contains($path, '/share_landing')
+            || str_contains($path, '/share-landing')
+            || isset($query['shc'])
+            || isset($query['group_id'])
+            || (string) ($query['cart_share'] ?? '') === '1';
+    }
+
+    private function shareScopedNodes(array $node, int $depth = 0): array
+    {
+        if ($depth > 10) {
+            return [];
+        }
+
+        $scopes = [];
+        $normalizedKeys = [];
+        foreach ($node as $key => $value) {
+            $normalizedKeys[strtolower((string) $key)] = $value;
+        }
+
+        $hasGroup = isset($normalizedKeys['group_id']) || isset($normalizedKeys['groupid']);
+        $hasGoods = isset($normalizedKeys['goods_list']) || isset($normalizedKeys['goodslist']);
+        if ($hasGroup && $hasGoods) {
+            $scopes[] = $node;
+            return $scopes;
+        }
+
+        foreach ($node as $key => $value) {
+            if (! is_array($value)) {
+                continue;
+            }
+
+            $normalized = strtolower(preg_replace('/[^a-z0-9]/i', '', (string) $key) ?? '');
+            if (in_array($normalized, ['cartsharedata', 'sharecartdata', 'cartshareinfo', 'sharecartinfo'], true)) {
+                $scopes[] = $value;
+                continue;
+            }
+
+            if (array_is_list($value)) {
+                foreach ($value as $child) {
+                    if (is_array($child)) {
+                        array_push($scopes, ...$this->shareScopedNodes($child, $depth + 1));
+                    }
+                }
+            } else {
+                array_push($scopes, ...$this->shareScopedNodes($value, $depth + 1));
+            }
+        }
+
+        return $scopes;
     }
 
     private function extractJsonLd(string $html, array &$items, string $sourceUrl, string $fallbackCurrency): void
