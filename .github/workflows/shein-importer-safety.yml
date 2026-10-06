@@ -39,7 +39,9 @@ jobs:
       - name: Node syntax and importer safety
         run: |
           node --check scripts/shein-shared-page-import.mjs
+          node --check scripts/shein-shared-page-retry.mjs
           node --test tests/static/shein-final-destination.test.mjs
+          node --test tests/static/shein-safari-retry.test.mjs
           node --test tests/static/shein-shared-page-safety.test.mjs
           node --test tests/static/shein-share-evidence.test.mjs
           node --test tests/static/shein-share-schema-shape.test.mjs
