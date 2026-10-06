@@ -28,13 +28,19 @@ class SheinImportTest extends TestCase
         return $user;
     }
 
-    public function test_shein_share_adapter_extracts_json_ld_product_when_exposed(): void
+    public function test_shared_cart_does_not_treat_generic_json_ld_product_as_cart_item(): void
     {
         $user = $this->seedShein();
         Http::fake(['*' => Http::response('<html><script type="application/ld+json">{"@type":"Product","name":"Dress","sku":"S1","image":"https://img.test/a.jpg","offers":{"price":"12.50","priceCurrency":"USD"}}</script></html>', 200)]);
+        Process::fake(['*' => Process::result(output: json_encode([
+            'ok'=>true,'status'=>'shared_page_unreadable','items'=>[],'payloads'=>[],
+            'message'=>'تعذر تأكيد عناصر السلة.',
+        ], JSON_UNESCAPED_UNICODE))]);
 
-        $this->actingAs($user)->post('/my-carts/analyze', ['source_url' => 'https://onelink.shein.com/50/example'])
-            ->assertOk()->assertSee('Dress')->assertSee('السعر غير مؤكد');
+        $this->actingAs($user)->post('/my-carts/analyze', ['source_url' => 'https://onelink.shein.com/50/example?shc=SAMPLE'])
+            ->assertOk()
+            ->assertDontSee('Dress')
+            ->assertSee('تعذر تأكيد عناصر السلة');
     }
 
     public function test_real_style_share_landing_extracts_multiple_cart_items_from_initial_state(): void
@@ -83,6 +89,34 @@ HTML;
             ->assertSee('دولار')
             ->assertSee('Black')
             ->assertSee('M');
+    }
+
+    public function test_share_html_ignores_recommendations_outside_share_scope(): void
+    {
+        $user = $this->seedShein();
+        $html = <<<'HTML'
+<html><script>
+window.__INITIAL_STATE__ = {
+  "cartShareData": {
+    "group_id": "851956795",
+    "goods_list": [
+      {"goods_id":"101","goods_name":"Shared Dress","goods_img":"//img.ltwebstatic.com/shared.jpg","salePrice":{"usdAmount":"9.59"},"quantity":1}
+    ]
+  },
+  "recommendData": {
+    "goods_list": [
+      {"goods_id":"999","goods_name":"Recommended Fake Item","goods_img":"//img.ltwebstatic.com/fake.jpg","salePrice":{"usdAmount":"10.62"}}
+    ]
+  }
+};
+</script></html>
+HTML;
+        Http::fake(['*' => Http::response($html, 200)]);
+
+        $this->actingAs($user)->post('/my-carts/analyze', ['source_url' => self::SHARE_URL])
+            ->assertOk()
+            ->assertSee('Shared Dress')
+            ->assertDontSee('Recommended Fake Item');
     }
 
     public function test_share_landing_uses_usd_even_when_local_country_is_ae_when_page_hides_items(): void
