@@ -109,6 +109,29 @@ HTML;
             ->assertSee('M');
     }
 
+    public function test_explicit_cart_share_assignment_is_accepted_without_group_id_inside_payload(): void
+    {
+        $user = $this->seedShein();
+        $html = <<<'HTML'
+<html><script>
+window.cartShareData = {
+  "goods_list": [
+    {"goods_id":"202","goods_name":"Explicit Shared Item","goods_img":"//img.ltwebstatic.com/explicit.jpg","salePrice":{"usdAmount":"7.25"},"quantity":1}
+  ]
+};
+window.goodsList = [
+  {"goods_id":"909","goods_name":"Generic Feed Item","goods_img":"//img.ltwebstatic.com/feed.jpg","salePrice":{"usdAmount":"4.00"},"quantity":1}
+];
+</script></html>
+HTML;
+        Http::fake(['*' => Http::response($html, 200)]);
+
+        $this->actingAs($user)->post('/my-carts/analyze', ['source_url' => self::SHARE_URL])
+            ->assertOk()
+            ->assertSee('Explicit Shared Item')
+            ->assertDontSee('Generic Feed Item');
+    }
+
     public function test_share_html_ignores_recommendations_outside_share_scope(): void
     {
         $user = $this->seedShein();
