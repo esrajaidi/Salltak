@@ -20,6 +20,17 @@ class SheinUrlResolverTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_full_direct_share_link_keeps_share_token_group_and_country_unchanged(): void
+    {
+        Http::fake();
+        $url = 'https://m.shein.com/ar/cart/share/landing?shc=SAMPLE_TOKEN&group_id=888386115&local_country=AE&url_from=GM_SAMPLE&cart_share=1';
+
+        $resolved = (new SheinUrlResolver(new StoreUrlClassifier()))->resolve($url);
+
+        $this->assertSame($url, $resolved);
+        Http::assertNothingSent();
+    }
+
     public function test_onelink_is_resolved_to_final_shein_share_url(): void
     {
         $short = 'https://onelink.shein.com/52/61qjncux1fzh?shc=2_R8AGnFXIuSR';
