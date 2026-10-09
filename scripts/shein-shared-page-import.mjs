@@ -240,6 +240,42 @@ if (!allowed(targetUrl)) {
       args: ['--disable-dev-shm-usage'],
     });
 
+    // Rehydrate the owner's manually authenticated browser state only when
+    // the admin explicitly enabled it in the encrypted vault. Never return it
+    // to the caller, store it in logs, or send it to another origin.
+    let accountSessionApplied = false;
+    const stored = cfg.accountSession;
+    if (stored && Array.isArray(stored.cookies) && stored.cookies.length > 0) {
+      const safeDomain = raw => {
+        const host = String(raw || '').replace(/^\./, '').toLowerCase();
+        return host === 'shein.com' || host.endsWith('.shein.com');
+      };
+      const safeCookies = stored.cookies.filter(c => c && safeDomain(c.domain) && c.secure === true);
+      if (safeCookies.length > 0) {
+        await context.addCookies(safeCookies);
+        const storageByOrigin = {};
+        for (const entry of (Array.isArray(stored.origins) ? stored.origins : [])) {
+          try {
+            const origin = new URL(entry.origin);
+            if (origin.protocol === 'https:' && safeDomain(origin.hostname)) {
+              storageByOrigin[origin.origin] = (Array.isArray(entry.localStorage) ? entry.localStorage : [])
+                .filter(p => p && typeof p.name === 'string' && typeof p.value === 'string');
+            }
+          } catch {}
+        }
+        if (Object.keys(storageByOrigin).length > 0) {
+          await context.addInitScript((storage) => {
+            if (location.protocol !== 'https:'
+              || !(location.hostname === 'shein.com' || location.hostname.endsWith('.shein.com'))) return;
+            for (const pair of (storage[location.origin] || [])) {
+              try { localStorage.setItem(pair.name, pair.value); } catch {}
+            }
+          }, storageByOrigin);
+        }
+        accountSessionApplied = true;
+      }
+    }
+
     const page = context.pages()[0] || await context.newPage();
     const maps = {
       networkUsdById: new Map(),
@@ -625,6 +661,7 @@ if (!allowed(targetUrl)) {
           shared_items_landing:false,
           ...evidenceMeta,
           sharedPageEvidence:false,
+          account_session_applied:accountSessionApplied,
           visible_product_count:visibleProductCount,
           candidate_root_count:Number(domSnapshot.candidate_root_count || 0),
           image_candidate_count:Number(domSnapshot.image_candidate_count || 0),
@@ -698,6 +735,7 @@ if (!allowed(targetUrl)) {
         pricing_country_verified:bffAePriceVerified,
         pricing_evidence:bffAePriceVerified ? 'aed_price_in_ae_share_bff' : 'unconfirmed',
         sharedPageEvidence:true,
+        account_session_applied:accountSessionApplied,
         visible_product_count:visibleProductCount,
         visible_product_count_before_network_fallback:visibleProductCountBeforeNetworkFallback,
         final_item_count:items.length,
