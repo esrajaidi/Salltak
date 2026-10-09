@@ -58,11 +58,21 @@
         <section class="surface-card admin-panel p-3 p-md-4 h-100">
             <h2 class="h5 fw-bold mb-3">3. اختبار أسعار حسابك</h2>
             <p class="text-secondary small">بعد الرفع، جرّبي رابط سلة SHEIN معروفًا وافحصي هل السعر رجع نفسه اللي تشوفيه في حسابك على التطبيق. الاختبار لا ينشر سعرًا للزبائن.</p>
+            @unless($connection['connected'])
+                <div class="alert alert-warning py-2 small" role="alert">
+                    الجلسة غير محفوظة بعد. ارفعي ملف <code>session.json</code> في الخطوة 2 أولًا. يمكنك الضغط على الاختبار الآن، لكن لن يبدأ جلب الأسعار قبل حفظ الجلسة.
+                </div>
+            @endunless
             <form method="POST" action="{{ route('admin.shein-session.test') }}" class="d-grid gap-3">
                 @csrf
-                <label for="testLink" class="form-label fw-bold">رابط السلة الكاملة (يحتوي group_id)</label>
-                <input id="testLink" type="url" name="test_url" class="form-control ltr" placeholder="https://m.shein.com/ar/cart/share/landing?group_id=..." required>
-                <button class="btn btn-outline-primary" type="submit" @disabled(!$connection['connected'])>اختبار الجلسة (بدون تفعيل للعملاء)</button>
+                <div>
+                    <label for="testLink" class="form-label fw-bold">رابط سلة SHEIN (القصير أو الطويل)</label>
+                    <textarea id="testLink" name="test_url" class="form-control ltr text-start @error('test_url') is-invalid @enderror" dir="ltr" rows="4" maxlength="2500"
+                        placeholder="I found some great items at SHEIN!&#10;https://onelink.shein.com/56/..." required>{{ old('test_url') }}</textarea>
+                    <div class="form-text">الصقي رابط onelink مباشرة أو رسالة المشاركة الكاملة؛ سلتك تستخرج الرابط تلقائيًا.</div>
+                    @error('test_url')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+                </div>
+                <button class="btn btn-outline-primary" type="submit">اختبار الجلسة (بدون تفعيل للعملاء)</button>
             </form>
             @if(session()->has('shein_session_test_result'))
                 @php($test = session('shein_session_test_result'))

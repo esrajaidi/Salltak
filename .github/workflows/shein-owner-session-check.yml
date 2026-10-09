@@ -30,3 +30,7 @@ jobs:
           php -l app/Services/CartImport/Browser/SheinBrowserImporter.php
           php -l database/migrations/2026_10_09_210000_create_shein_account_sessions_table.php
           php -l routes/web.php
+          php -l app/Services/CartImport/SheinSharedCartInput.php
+          php -l tests/static/shein-share-input-check.php
+      - name: Shared cart link input checks
+        run: php tests/static/shein-share-input-check.php

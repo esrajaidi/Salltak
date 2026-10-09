@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Services\CartImport\Browser\SheinBrowserImporter;
 use App\Services\CartImport\SheinSessionVault;
+use App\Services\CartImport\SheinSharedCartInput;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
@@ -43,22 +44,19 @@ class SheinAccountSessionController extends Controller
     public function test(Request $request, SheinBrowserImporter $browser)
     {
         $data = $request->validate([
-            'test_url' => ['required','url:http,https','max:2000'],
+            'test_url' => ['required','string','max:2500'],
         ]);
-        $host = strtolower((string) parse_url($data['test_url'], PHP_URL_HOST));
-        if ($host !== 'shein.com' && ! str_ends_with($host, '.shein.com')) {
-            throw ValidationException::withMessages(['test_url' => 'أدخلي رابط مشاركة SHEIN فقط.']);
-        }
-        if (! str_contains($data['test_url'], '/cart/share/landing')
-            || ! preg_match('/[?&]group_id=\d{6,20}(?:[&#]|$)/', $data['test_url'])) {
-            throw ValidationException::withMessages(['test_url' => 'الاختبار يحتاج رابط مشاركة كامل يحتوي رقم السلة group_id.']);
+        try {
+            $shareUrl = SheinSharedCartInput::extract($data['test_url']);
+        } catch (\InvalidArgumentException $exception) {
+            throw ValidationException::withMessages(['test_url' => $exception->getMessage()]);
         }
         if ($this->vault->read(true) === null) {
             throw ValidationException::withMessages(['test_url' => 'ارفعي جلسة حسابك أولًا.']);
         }
 
         // This request alone may use the encrypted session while the public flow remains off.
-        $result = $browser->import($data['test_url'], true);
+        $result = $browser->import($shareUrl, true);
         $rows = is_array($result['items'] ?? null) ? $result['items'] : [];
         $item = $rows[0] ?? [];
         return back()->with('shein_session_test_result', [
