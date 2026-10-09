@@ -36,7 +36,7 @@ final class SheinSharedCartInput
         }
 
         $parts = parse_url($candidate);
-        if (! is_array($parts) || strtolower((string) ($parts['scheme'] ?? '')) !== 'https:'
+        if (! is_array($parts) || strtolower((string) ($parts['scheme'] ?? '')) !== 'https'
             || isset($parts['user']) || isset($parts['pass']) || isset($parts['port'])) {
             return false;
         }
