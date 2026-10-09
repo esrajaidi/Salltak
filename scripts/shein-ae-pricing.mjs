@@ -16,7 +16,7 @@ export function uaeSharedLandingUrl(originalUrl, redirectedUrl = '') {
   const original = safeShein(originalUrl);
   const redirected = safeShein(redirectedUrl);
   const groupId = original?.searchParams.get('group_id') || redirected?.searchParams.get('group_id');
-  if (!groupId || !/^[a-zA-Z0-9_-]{6,100}$/.test(groupId)) return '';
+  if (!groupId || !/^\d{6,20}$/.test(groupId)) return '';
   const result = new URL('https://m.shein.com/ar/cart/share/landing');
   result.searchParams.set('group_id', groupId);
   const shc = original?.searchParams.get('shc') || redirected?.searchParams.get('shc');
@@ -31,7 +31,7 @@ export function uaeSharedLandingUrl(originalUrl, redirectedUrl = '') {
 export function uaeShareRequest(url, expectedGroupId = '') {
   const u = safeShein(url);
   const groupId = String(expectedGroupId || '').trim();
-  if (!u || !/^[a-zA-Z0-9_-]{6,100}$/.test(groupId)) return null;
+  if (!u || !/^\d{6,20}$/.test(groupId)) return null;
   return {
     endpoint: 'https://m.shein.com/ar/bff-api/order/cart/share/landing?_ver=1.1.8&_lang=ar',
     body: { groupId, localCountry: PRICING_COUNTRY, userLocalSizeCountry: '' },
