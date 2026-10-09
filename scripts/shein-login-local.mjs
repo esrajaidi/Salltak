@@ -19,7 +19,7 @@ try {
     viewport: { width: 1250, height: 900 },
   });
   const page = browser.pages()[0] || await browser.newPage();
-  await page.goto('https://m.shein.com/ar/', { waitUntil: 'domcontentloaded', timeout: 45_000 });
+  await page.goto('https://ar.shein.com/', { waitUntil: 'domcontentloaded', timeout: 45_000 });
   process.stdout.write([
     '',
     'افتحي حسابك في SHEIN في نافذة Chromium وكمّلي تسجيل الدخول بنفسك.',
