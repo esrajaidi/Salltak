@@ -1,8 +1,8 @@
-FROM node:22-bookworm AS node
+FROM public.ecr.aws/docker/library/node:22-bookworm AS node
 
-FROM composer:2 AS composer
+FROM public.ecr.aws/docker/library/composer:2 AS composer
 
-FROM php:8.3-cli-bookworm
+FROM public.ecr.aws/docker/library/php:8.3-cli-bookworm
 
 ENV DEBIAN_FRONTEND=noninteractive \
     COMPOSER_ALLOW_SUPERUSER=1 \
