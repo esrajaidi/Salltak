@@ -15,7 +15,8 @@ let browser;
 try {
   browser = await chromium.launchPersistentContext(profileDirectory, {
     headless: false,
-    locale: 'ar-AE',
+    // English UAE browser locale avoids preferring the ar.shein.com storefront.
+    locale: 'en-AE',
     viewport: { width: 1250, height: 900 },
   });
   const page = browser.pages()[0] || await browser.newPage();
