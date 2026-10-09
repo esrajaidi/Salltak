@@ -5,7 +5,8 @@
   "scripts": {
     "browser:install": "playwright install chromium",
     "browser:check": "node --check scripts/shein-browser-import.mjs",
-    "browser:smoke": "node scripts/shein-browser-check.mjs"
+    "browser:smoke": "node scripts/shein-browser-check.mjs",
+    "shein:login": "node scripts/shein-login-local.mjs"
   },
   "dependencies": {
     "playwright-chromium": "1.62.1"
