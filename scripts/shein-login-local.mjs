@@ -19,10 +19,10 @@ try {
     viewport: { width: 1250, height: 900 },
   });
   const page = browser.pages()[0] || await browser.newPage();
-  await page.goto('https://ar.shein.com/', { waitUntil: 'domcontentloaded', timeout: 45_000 });
+  await page.goto('https://www.shein.com/', { waitUntil: 'domcontentloaded', timeout: 45_000 });
   process.stdout.write([
     '',
-    'افتحي حسابك في SHEIN في نافذة Chromium وكمّلي تسجيل الدخول بنفسك.',
+    'افتحي حسابك في SHEIN عبر https://www.shein.com في نافذة Chromium وكمّلي تسجيل الدخول بنفسك.',
     'تأكدي أن بلد التسوق الإمارات وأن حساب الشراء ظاهر.',
     'لا تكتبي كلمة مرور SHEIN في Terminal أو في سلتك.',
     '',
