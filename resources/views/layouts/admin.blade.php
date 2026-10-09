@@ -20,6 +20,7 @@
                     <a class="nav-link {{ request()->routeIs('admin.stores.*') ? 'active' : '' }}" href="{{ route('admin.stores.index') }}"><span class="nav-symbol"><x-icon name="globe"/></span><span>المواقع</span></a>
                     <a class="nav-link {{ request()->routeIs('admin.rates.*') ? 'active' : '' }}" href="{{ route('admin.rates.index') }}"><span class="nav-symbol"><x-icon name="exchange"/></span><span>أسعار الصرف</span></a>
                     <a class="nav-link {{ request()->routeIs('admin.site-content.*') ? 'active' : '' }}" href="{{ route('admin.site-content.index') }}"><span class="nav-symbol"><x-icon name="content"/></span><span>إدارة الموقع الخارجي</span></a>
+                    <a class="nav-link {{ request()->routeIs('admin.shein-session.*') ? 'active' : '' }}" href="{{ route('admin.shein-session.index') }}"><span class="nav-symbol"><x-icon name="lock"/></span><span>جلسة حساب SHEIN</span></a>
                     <a class="nav-link {{ request()->routeIs('admin.settings.*') ? 'active' : '' }}" href="{{ route('admin.settings.edit') }}"><span class="nav-symbol"><x-icon name="settings"/></span><span>الإعدادات</span></a>
                 @endif
             </nav>
