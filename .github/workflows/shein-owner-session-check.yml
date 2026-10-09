@@ -34,3 +34,8 @@ jobs:
           php -l tests/static/shein-share-input-check.php
       - name: Shared cart link input checks
         run: php tests/static/shein-share-input-check.php
+      - name: Owner-session empty-cart fallback guards
+        run: |
+          php -l app/Services/CartImport/Adapters/SheinShareAdapter.php
+          php -l tests/static/shein-owner-guest-fallback-check.php
+          php tests/static/shein-owner-guest-fallback-check.php

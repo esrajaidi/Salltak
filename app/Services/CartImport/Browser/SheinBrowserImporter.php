@@ -56,6 +56,40 @@ class SheinBrowserImporter
             $shared = $this->withAttemptMeta($shared, 1, false);
             $shared['meta']['source'] = 'shein_shared_items_page';
 
+            // A logged-in SHEIN browser can display a different page and
+            // return no shared items even while the unauthenticated share API
+            // still works. Preserve the imported products as an explicitly
+            // unverified guest quote, never as a confirmed account price.
+            // The owner's encrypted cookies are NOT passed to this retry.
+            if ($accountState !== null && $this->isSharedCartUrl($url) && ($shared['items'] ?? []) === []) {
+                $guestProfile = storage_path('app/shein-shared-page-guest/'.Str::uuid());
+                try {
+                    $guest = $this->runWorker($url, $guestProfile, $sharedPageScript, 'shared_guest_fallback', $traceId);
+                } finally {
+                    File::deleteDirectory($guestProfile);
+                }
+
+                if (($guest['items'] ?? []) !== []) {
+                    $guest = $this->withAttemptMeta($guest, 2, true);
+                    $guest['items'] = SheinImportedItemCleaner::clean($guest['items']);
+                    $guest['status'] = 'guest_price_needs_review';
+                    $guest['message'] = 'تعذر جلب المنتجات بجلسة حساب الشراء. تم استرجاع منتجات السلة كزائر؛ الأسعار تحتاج مراجعة من حساب SHEIN.';
+                    $guest['meta']['owner_session_fallback'] = true;
+                    $guest['meta']['owner_session_attempt_status'] = (string) ($shared['status'] ?? 'failed');
+                    $guest['meta']['account_session_applied'] = false;
+                    $guest['meta']['source'] = 'shein_shared_guest_fallback';
+                    return $guest;
+                }
+
+                // Keep the original diagnostic but do not start an extra
+                // 55-second authenticated desktop retry after two empty
+                // attempts. A fresh user retry may work when SHEIN recovers.
+                $shared['meta']['guest_retry_status'] = (string) ($guest['status'] ?? 'failed');
+                $shared['meta']['guest_retry_empty'] = true;
+                $shared['meta']['owner_session_fallback'] = true;
+                return $shared;
+            }
+
             if (($shared['items'] ?? []) !== []) {
                 if (SheinImportedItemCleaner::needsEnrichment($shared['items'])) {
                     $fallbackProfile = storage_path('app/shein-browser-enrichment/'.Str::uuid());

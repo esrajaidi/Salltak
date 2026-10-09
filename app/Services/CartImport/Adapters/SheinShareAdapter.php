@@ -93,7 +93,18 @@ class SheinShareAdapter implements CartSourceAdapter
                     'pricing_country_requested' => $browser['meta']['pricing_country_requested'] ?? 'AE',
                     'pricing_country_verified' => (bool) ($browser['meta']['pricing_country_verified'] ?? false),
                     'pricing_evidence' => $browser['meta']['pricing_evidence'] ?? 'unconfirmed',
+                    'account_session_applied' => (bool) ($browser['meta']['account_session_applied'] ?? false),
+                    'owner_session_fallback' => (bool) ($browser['meta']['owner_session_fallback'] ?? false),
                 ]);
+            if (($browser['status'] ?? '') === 'guest_price_needs_review') {
+                return ImportResult::needsReview(
+                    'تم استيراد السلة بأسعار الزائر لأن جلسة حساب الشراء لم تُرجع المنتجات. راجعي السعر من حساب SHEIN قبل اعتماد الطلب.',
+                    items: $browserItems,
+                    currency: $currency,
+                    meta: $browserMeta + ['owner_session_fallback' => true]
+                );
+            }
+
             if (($browser['status'] ?? '') === 'ae_price_unverified') {
                 return ImportResult::needsReview(
                     'تم جلب المنتجات، لكن تعذر إثبات أن السعر خاص بالإمارات. راجع السعر من حساب الشراء قبل تأكيد الطلب.',
