@@ -2,7 +2,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import { spawnSync } from 'node:child_process';
-import { chromium } from 'playwright-chromium';
 
 async function readInput() {
   let raw = '';
@@ -37,33 +36,13 @@ if (!isSheinUrl(targetUrl) || !fs.existsSync(strictWorker)) {
   process.exitCode = 2;
 } else {
   fs.mkdirSync(profileDir, { recursive: true });
-  let finalUrl = targetUrl;
-  let context;
-
-  try {
-    context = await chromium.launchPersistentContext(profileDir, {
-      headless: cfg.headless !== false,
-      locale: 'ar-AE',
-      viewport: { width: 1280, height: 900 },
-      userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
-      args: ['--disable-dev-shm-usage'],
-    });
-
-    const page = context.pages()[0] || await context.newPage();
-    await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: timeoutMs });
-    try { await page.waitForLoadState('networkidle', { timeout: Math.min(10_000, timeoutMs) }); } catch {}
-    await page.waitForTimeout(1800);
-
-    if (isSheinUrl(page.url())) finalUrl = page.url();
-  } catch {
-    finalUrl = targetUrl;
-  } finally {
-    if (context) await context.close().catch(() => {});
-  }
-
+  // Run the strict parser exactly once in a desktop browser. A separate
+  // preflight used to launch Chromium, navigate, and close it before the
+  // actual parser launched another Chromium instance. That consumed the
+  // Railway worker budget and sometimes left no result for the second run.
   const childInput = JSON.stringify({
     ...cfg,
-    url: finalUrl,
+    url: targetUrl,
     profileDir,
     locale: 'ar-AE',
     viewport: { width: 1280, height: 900 },
@@ -81,8 +60,10 @@ if (!isSheinUrl(targetUrl) || !fs.existsSync(strictWorker)) {
   if (child.error) {
     process.stdout.write(JSON.stringify({
       ok: false,
-      status: 'failed',
-      message: child.error.message || 'Alternate shared-page retry failed.',
+      status: child.error.code === 'ETIMEDOUT' ? 'timeout' : 'failed',
+      message: child.error.code === 'ETIMEDOUT'
+        ? 'انتهت مهلة محاولة SHEIN بوضع الكمبيوتر.'
+        : 'تعذّر تشغيل محاولة SHEIN بوضع الكمبيوتر.',
       items: [],
       payloads: [],
     }));
