@@ -4,6 +4,7 @@ import process from 'node:process';
 import { chromium } from 'playwright-chromium';
 import { summarizeShareEvidence } from './shein-share-evidence.mjs';
 import { parseSheinShareBff } from './shein-share-bff-items.mjs';
+import { PRICING_COUNTRY, uaeSharedLandingUrl, uaeShareRequest } from './shein-ae-pricing.mjs';
 
 const MAX_RESPONSE_BYTES = 2_500_000;
 const MAX_ITEMS = 60;
@@ -253,11 +254,19 @@ if (!allowed(targetUrl)) {
     let bffCandidateCount = 0;
     let bffMissingUsdPriceCount = 0;
     let bffBoundResponseCount = 0;
+    let bffAePriceVerified = false;
     const captureBoundBff = parsed => {
       if (!parsed.bound) return;
       bffBoundResponseCount++;
-      bffCandidateCount = Math.max(bffCandidateCount, parsed.candidateCount);
-      bffMissingUsdPriceCount = Math.max(bffMissingUsdPriceCount, parsed.missingUsdPriceCount);
+      // Verified AE price rows always take precedence over an unverified
+      // response. Never merge two regional price lists indiscriminately.
+      if (bffAePriceVerified && !parsed.aePriceVerified) return;
+      if (parsed.aePriceVerified && !bffAePriceVerified) {
+        bffSharedRows.clear();
+        bffAePriceVerified = true;
+      }
+      bffCandidateCount = parsed.candidateCount;
+      bffMissingUsdPriceCount = parsed.missingUsdPriceCount;
       for (const item of parsed.items) {
         const key = [item.external_id, item.variant, item.color, item.size].join('|');
         bffSharedRows.set(key, item);
@@ -287,6 +296,7 @@ if (!allowed(targetUrl)) {
             method: response.request().method(),
             requestBody: response.request().postData(),
             expectedGroupId: shareContextFor(targetUrl, page.url()).groupId,
+            expectedCountry: PRICING_COUNTRY,
           });
           captureBoundBff(bff);
           const observation = summarizeShareEvidence({
@@ -305,7 +315,16 @@ if (!allowed(targetUrl)) {
       responseTasks.push(task);
     });
 
-    await page.goto(targetUrl, { waitUntil:'domcontentloaded', timeout:timeoutMs });
+    const directAeLanding = uaeSharedLandingUrl(targetUrl);
+    await page.goto(directAeLanding || targetUrl, { waitUntil:'domcontentloaded', timeout:timeoutMs });
+    // A short SHEIN onelink can hide the groupId until the redirect resolves.
+    // Once resolved, navigate to the UAE share landing without replacing shc.
+    if (!directAeLanding) {
+      const redirectedAeLanding = uaeSharedLandingUrl(targetUrl, page.url());
+      if (redirectedAeLanding && page.url() !== redirectedAeLanding) {
+        await page.goto(redirectedAeLanding, { waitUntil:'domcontentloaded', timeout:timeoutMs });
+      }
+    }
     try { await page.waitForLoadState('networkidle', { timeout:Math.min(12_000, timeoutMs) }); } catch {}
     await page.waitForTimeout(2600);
     await Promise.allSettled(responseTasks);
@@ -317,13 +336,11 @@ if (!allowed(targetUrl)) {
     // exact shared-cart POST in the SAME browser session, with real cookies.
     // No unrelated listing or recommendation endpoints are eligible.
     const targetShare = shareContextFor(targetUrl, finalUrl);
-    if (bffSharedRows.size === 0 && targetShare.groupId && sheinUrl(finalUrl)) {
+    if (!bffAePriceVerified && targetShare.groupId && sheinUrl(finalUrl)) {
       try {
-        const uri = new URL(finalUrl);
-        const segment = uri.pathname.split('/').filter(Boolean)[0] || 'ar';
-        const locale = /^[a-z]{2}(?:-[a-z]{2})?$/i.test(segment) ? segment : 'ar';
-        const endpoint = uri.origin + '/' + locale + '/bff-api/order/cart/share/landing?_ver=1.1.8&_lang=' + locale.split('-')[0];
-        const body = { groupId: targetShare.groupId, localCountry: (uri.searchParams.get('local_country') || 'AE').toUpperCase(), userLocalSizeCountry: '' };
+        const request = uaeShareRequest(finalUrl, targetShare.groupId);
+        if (!request) throw new Error('Missing UAE share context');
+        const { endpoint, body } = request;
         const result = await page.evaluate(async ({ endpoint, body }) => {
           const controller = new AbortController();
           const timeout = setTimeout(() => controller.abort(), 10_000);
@@ -332,7 +349,7 @@ if (!allowed(targetUrl)) {
               method: 'POST', credentials: 'include', signal: controller.signal,
               headers: { 'accept': 'application/json, text/plain, */*',
                 'content-type': 'application/json',
-                'x-requested-with': 'XMLHttpRequest', appcurrency: 'USD' },
+                'x-requested-with': 'XMLHttpRequest', appcurrency: 'AED' },
               body: JSON.stringify(body),
             });
             const text = await response.text();
@@ -345,6 +362,7 @@ if (!allowed(targetUrl)) {
           captureBoundBff(parseSheinShareBff(payload, {
             url: endpoint, method: 'POST', requestBody: body,
             expectedGroupId: targetShare.groupId,
+            expectedCountry: PRICING_COUNTRY,
           }));
         }
       } catch {}
@@ -676,6 +694,9 @@ if (!allowed(targetUrl)) {
         bound_bff_candidate_count:bffCandidateCount,
         bound_bff_valid_item_count:bffSharedRows.size,
         bound_bff_missing_usd_count:bffMissingUsdPriceCount,
+        pricing_country_requested:PRICING_COUNTRY,
+        pricing_country_verified:bffAePriceVerified,
+        pricing_evidence:bffAePriceVerified ? 'aed_price_in_ae_share_bff' : 'unconfirmed',
         sharedPageEvidence:true,
         visible_product_count:visibleProductCount,
         visible_product_count_before_network_fallback:visibleProductCountBeforeNetworkFallback,
@@ -693,7 +714,11 @@ if (!allowed(targetUrl)) {
 
       if (bffSharedRows.size > 0 && bffMissingUsdPriceCount === 0) {
         out({
-          ok:true, status:'loaded', final_url:finalUrl,
+          ok:true, status:bffAePriceVerified ? 'loaded' : 'ae_price_unverified',
+          message:bffAePriceVerified
+            ? 'تم جلب أسعار موقع SHEIN المعلنة للإمارات. الكوبونات الخاصة بالحساب غير مشمولة.'
+            : 'تم استيراد المنتجات، لكن تعذر التأكد من أن تسعيرها خاص بالإمارات. الأسعار للمراجعة فقط.',
+          final_url:finalUrl,
           items:[...bffSharedRows.values()].slice(0, MAX_ITEMS),
           payloads:[],
           meta:{ ...diagnosticMeta, final_item_count:bffSharedRows.size,
@@ -728,7 +753,8 @@ if (!allowed(targetUrl)) {
       } else {
         out({
           ok:true,
-          status:'loaded',
+          status:'ae_price_unverified',
+          message:'تم العثور على المنتجات، لكن سعر الإمارات لم يتم التحقق منه بعد. الأسعار للمراجعة فقط.',
           final_url:finalUrl,
           items:items.slice(0, MAX_ITEMS),
           payloads:[],
