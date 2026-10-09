@@ -7,6 +7,7 @@ use App\Http\Controllers\Admin\ExchangeRateController;
 use App\Http\Controllers\Admin\OrderController as AdminOrderController;
 use App\Http\Controllers\Admin\PaymentMethodController;
 use App\Http\Controllers\Admin\SettingController;
+use App\Http\Controllers\Admin\SheinAccountSessionController;
 use App\Http\Controllers\Admin\SiteContentController;
 use App\Http\Controllers\Admin\StoreController;
 use App\Http\Controllers\Admin\UserController;
@@ -93,6 +94,13 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'backoffice'])->grou
         Route::put('/deposit-rules/{depositRule}', [DepositRuleController::class, 'update'])->name('deposit-rules.update');
         Route::patch('/deposit-rules/{depositRule}/toggle', [DepositRuleController::class, 'toggle'])->name('deposit-rules.toggle');
         Route::delete('/deposit-rules/{depositRule}', [DepositRuleController::class, 'destroy'])->name('deposit-rules.destroy');
+
+        Route::get('/shein-session', [SheinAccountSessionController::class, 'index'])->name('shein-session.index');
+        Route::post('/shein-session', [SheinAccountSessionController::class, 'upload'])->middleware('throttle:3,5')->name('shein-session.upload');
+        Route::post('/shein-session/test', [SheinAccountSessionController::class, 'test'])->middleware('throttle:3,5')->name('shein-session.test');
+        Route::post('/shein-session/enable', [SheinAccountSessionController::class, 'enable'])->name('shein-session.enable');
+        Route::post('/shein-session/disable', [SheinAccountSessionController::class, 'disable'])->name('shein-session.disable');
+        Route::delete('/shein-session', [SheinAccountSessionController::class, 'destroy'])->middleware('throttle:3,5')->name('shein-session.destroy');
 
         Route::get('/settings', [SettingController::class, 'edit'])->name('settings.edit');
         Route::put('/settings', [SettingController::class, 'update'])->name('settings.update');
