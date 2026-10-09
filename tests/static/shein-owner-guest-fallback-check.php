@@ -10,7 +10,7 @@ function requireGuard(bool $condition, string $label): void
 }
 
 requireGuard(str_contains($importer, 'if ($accountState !== null && $this->isSharedCartUrl($url) && ($shared[\'items\'] ?? []) === [])'), 'Guest retry must only follow an empty authenticated share');
-requireGuard(str_contains($importer, "'shared_guest_fallback', \$traceId);"), 'Guest retry must not receive account state');
+requireGuard(str_contains($importer, "'shared_guest_fallback', \$traceId, null, 'm.shein.com');"), 'Guest retry must not receive account state');
 requireGuard(str_contains($importer, "'status'] = 'guest_price_needs_review'"), 'Guest response must be marked unverified for account');
 requireGuard(str_contains($importer, "'account_session_applied'] = false"), 'Guest quote must never look authenticated');
 requireGuard(str_contains($importer, 'File::deleteDirectory($guestProfile)'), 'Temporary guest browser profile must be deleted');
