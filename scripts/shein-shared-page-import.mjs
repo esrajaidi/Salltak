@@ -292,8 +292,15 @@ if (!allowed(targetUrl)) {
     let bffMissingUsdPriceCount = 0;
     let bffBoundResponseCount = 0;
     let bffAePriceVerified = false;
-    const captureBoundBff = parsed => {
+    let boundBffResponseHost = '';
+    const captureBoundBff = (parsed, sourceUrl = '') => {
       if (!parsed.bound) return;
+      try {
+        const responseHost = new URL(sourceUrl).hostname.toLowerCase();
+        if (responseHost === 'www.shein.com' || responseHost === 'm.shein.com') {
+          boundBffResponseHost = responseHost;
+        }
+      } catch {}
       bffBoundResponseCount++;
       // Verified AE price rows always take precedence over an unverified
       // response. Never merge two regional price lists indiscriminately.
@@ -335,7 +342,7 @@ if (!allowed(targetUrl)) {
             expectedGroupId: shareContextFor(targetUrl, page.url()).groupId,
             expectedCountry: PRICING_COUNTRY,
           });
-          captureBoundBff(bff);
+          captureBoundBff(bff, responseUrl);
           const observation = summarizeShareEvidence({
             networkResponses: [{ url: responseUrl, payload: decoded }],
             expectedShareContext: shareContextFor(targetUrl, page.url()),
@@ -390,7 +397,7 @@ if (!allowed(targetUrl)) {
               body: JSON.stringify(body),
             });
             const text = await response.text();
-            return { status: response.status, text: text.length <= 2_500_000 ? text : '' };
+            return { status: response.status, text: text.length <= 2_500_000 ? text : '', responseUrl: response.url };
           } catch { return { status: 0, text: '' }; }
           finally { clearTimeout(timeout); }
         }, { endpoint, body }).catch(() => ({ status: 0, text: '' }));
@@ -400,7 +407,7 @@ if (!allowed(targetUrl)) {
             url: endpoint, method: 'POST', requestBody: body,
             expectedGroupId: targetShare.groupId,
             expectedCountry: PRICING_COUNTRY,
-          }));
+          }), result.responseUrl || endpoint);
         }
       } catch {}
       await Promise.allSettled(responseTasks);
@@ -664,6 +671,7 @@ if (!allowed(targetUrl)) {
           sharedPageEvidence:false,
           account_session_applied:accountSessionApplied,
           share_fetch_host:shareHost,
+          bound_bff_response_host:boundBffResponseHost,
           visible_product_count:visibleProductCount,
           candidate_root_count:Number(domSnapshot.candidate_root_count || 0),
           image_candidate_count:Number(domSnapshot.image_candidate_count || 0),
@@ -739,6 +747,7 @@ if (!allowed(targetUrl)) {
         sharedPageEvidence:true,
         account_session_applied:accountSessionApplied,
         share_fetch_host:shareHost,
+          bound_bff_response_host:boundBffResponseHost,
         visible_product_count:visibleProductCount,
         visible_product_count_before_network_fallback:visibleProductCountBeforeNetworkFallback,
         final_item_count:items.length,
