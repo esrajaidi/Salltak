@@ -48,3 +48,8 @@ jobs:
           php tests/static/shein-www-product-links-check.php
           node --test tests/static/shein-ae-pricing.test.mjs tests/static/shein-share-bff-items.test.mjs
           node --test tests/static/shein-www-shared-cart-fallback.test.mjs
+      - name: Owner www product price comparison checks
+        run: |
+          node --check scripts/shein-www-account-price-probe.mjs
+          node --test tests/static/shein-www-price-probe.test.mjs
+          php -l app/Http/Controllers/Admin/SheinAccountSessionController.php
