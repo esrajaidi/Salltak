@@ -8,6 +8,8 @@ test('owner session is manually captured and excluded from git', () => {
   const local = read('scripts/shein-login-local.mjs');
   const ignore = read('.gitignore');
   assert.match(local, /headless: false/);
+  assert.match(local, /page\.goto\('https:\/\/www\.shein\.com\/'/);
+  assert.doesNotMatch(local, /page\.goto\('https:\/\/ar\.shein\.com\/'/);
   assert.match(local, /browser\.storageState\(\)/);
   assert.match(local, /mode: 0o600/);
   assert.match(ignore, /\/storage\/app\/shein-session\//);
