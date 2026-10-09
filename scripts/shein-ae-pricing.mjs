@@ -44,5 +44,5 @@ export function isAedPrice(price) {
   const declared = String(price.currency || price.currencyCode || price.currency_code || '').trim().toUpperCase();
   if (declared) return declared === 'AED';
   const symbol = String(price.amountWithSymbol || '').trim();
-  return /^(?:AED\b|د\.?\s*إ|د\.?إ|د\.?أ)/i.test(symbol);
+  return /^(?:AED(?=\s|[0-9])|د\.?\s*إ|د\.?إ|د\.?أ)/i.test(symbol);
 }
