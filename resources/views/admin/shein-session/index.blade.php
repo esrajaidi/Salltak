@@ -86,6 +86,51 @@
                 </div>
             @endif
             <hr class="my-4">
+            <h2 class="h5 fw-bold mb-3">اختبار سعر المنتج بعد تسجيل الدخول على www.shein.com</h2>
+            <p class="small text-secondary">الصقي رابط المنتج من <strong>www.shein.com</strong> لمقارنة الأسعار الظاهرة بنفس المتصفح مع وبدون جلسة حساب الشراء. هذه تجربة للمدير فقط، ولا تغيّر سلات الزبائن أو أسعارها.</p>
+            <form method="POST" action="{{ route('admin.shein-session.price-probe') }}" class="d-grid gap-2">
+                @csrf
+                <label for="sheinProductUrl" class="form-label fw-bold">رابط صفحة المنتج</label>
+                <input id="sheinProductUrl" type="url" name="product_url"
+                    value="{{ old('product_url') }}" maxlength="2000"
+                    placeholder="https://www.shein.com/...-p-61586172.html"
+                    class="form-control ltr text-start @error('product_url') is-invalid @enderror"
+                    dir="ltr" required>
+                @error('product_url')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+                <button type="submit" class="btn btn-outline-primary" @disabled(!$connection['connected'])>مقارنة سعر www بحسابك وبوضع الزائر</button>
+            </form>
+            @if(session()->has('shein_price_probe_result'))
+                @php($probe = session('shein_price_probe_result'))
+                <div class="border rounded-3 p-3 mt-3">
+                    <strong class="d-block mb-2">نتيجة المقارنة</strong>
+                    @if(($probe['status'] ?? '') !== 'probed')
+                        <p class="small text-danger mb-0">{{ $probe['message'] ?? 'تعذر تنفيذ تجربة سعر المنتج.' }}</p>
+                    @else
+                        <div class="row g-2">
+                            @foreach(['owner' => 'محاولة جلسة حسابك', 'guest' => 'محاولة الزائر'] as $key => $label)
+                                @php($side = $probe[$key] ?? [])
+                                <div class="col-sm-6">
+                                    <div class="border rounded-3 p-2 h-100">
+                                        <div class="fw-bold small mb-1">{{ $label }}</div>
+                                        <div class="small text-secondary">حالة الصفحة: {{ $side['status'] ?? 'غير معروفة' }}</div>
+                                        <div class="small text-secondary">النطاق: {{ $side['final_host'] ?? 'غير متاح' }}</div>
+                                        <div class="small mt-2">
+                                            أسعار ظاهرة محتملة:
+                                            @forelse(($side['prices'] ?? []) as $price)
+                                                <span class="badge bg-light text-dark border">{{ number_format((float) $price, 2) }} $</span>
+                                            @empty
+                                                <span class="text-muted">لم تُقرأ أسعار</span>
+                                            @endforelse
+                                        </div>
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                        <p class="small text-danger mb-0 mt-2"><strong>تنبيه:</strong> هذه أرقام محتملة من الصفحة، وليست سعرًا مؤكدًا لنفس اللون والمقاس. تحميل Cookies لا يثبت وحده تسجيل الدخول؛ قارني نفس المنتج في حسابك قبل أي اعتماد تجاري.</p>
+                    @endif
+                </div>
+            @endif
+            <hr class="my-4">
             <h2 class="h5 fw-bold mb-3">4. التشغيل أو الإيقاف</h2>
             @if($connection['enabled'])
                 <form method="POST" action="{{ route('admin.shein-session.disable') }}" class="mb-3">
