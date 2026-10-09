@@ -3,6 +3,7 @@ import path from 'node:path';
 import process from 'node:process';
 import { chromium } from 'playwright-chromium';
 import { summarizeShareEvidence } from './shein-share-evidence.mjs';
+import { parseSheinShareBff } from './shein-share-bff-items.mjs';
 
 const MAX_RESPONSE_BYTES = 2_500_000;
 const MAX_ITEMS = 60;
@@ -248,6 +249,20 @@ if (!allowed(targetUrl)) {
     };
     const responseTasks = [];
     let inspectedResponseCount = 0;
+    const bffSharedRows = new Map();
+    let bffCandidateCount = 0;
+    let bffMissingUsdPriceCount = 0;
+    let bffBoundResponseCount = 0;
+    const captureBoundBff = parsed => {
+      if (!parsed.bound) return;
+      bffBoundResponseCount++;
+      bffCandidateCount = Math.max(bffCandidateCount, parsed.candidateCount);
+      bffMissingUsdPriceCount = Math.max(bffMissingUsdPriceCount, parsed.missingUsdPriceCount);
+      for (const item of parsed.items) {
+        const key = [item.external_id, item.variant, item.color, item.size].join('|');
+        bffSharedRows.set(key, item);
+      }
+    };
     const shareEvidence = {
       shareResponseSeen: false,
       shareBoundCandidateCount: 0,
@@ -267,6 +282,13 @@ if (!allowed(targetUrl)) {
           try { decoded = JSON.parse(text); } catch { return; }
           if (!decoded || typeof decoded !== 'object') return;
           inspectedResponseCount++;
+          const bff = parseSheinShareBff(decoded, {
+            url: responseUrl,
+            method: response.request().method(),
+            requestBody: response.request().postData(),
+            expectedGroupId: shareContextFor(targetUrl, page.url()).groupId,
+          });
+          captureBoundBff(bff);
           const observation = summarizeShareEvidence({
             networkResponses: [{ url: responseUrl, payload: decoded }],
             expectedShareContext: shareContextFor(targetUrl, page.url()),
@@ -290,6 +312,44 @@ if (!allowed(targetUrl)) {
 
     const bodyText = await page.locator('body').innerText().catch(() => '');
     const finalUrl = page.url();
+
+    // The share page does not always issue its own BFF request. Retry the
+    // exact shared-cart POST in the SAME browser session, with real cookies.
+    // No unrelated listing or recommendation endpoints are eligible.
+    const targetShare = shareContextFor(targetUrl, finalUrl);
+    if (bffSharedRows.size === 0 && targetShare.groupId && sheinUrl(finalUrl)) {
+      try {
+        const uri = new URL(finalUrl);
+        const segment = uri.pathname.split('/').filter(Boolean)[0] || 'ar';
+        const locale = /^[a-z]{2}(?:-[a-z]{2})?$/i.test(segment) ? segment : 'ar';
+        const endpoint = uri.origin + '/' + locale + '/bff-api/order/cart/share/landing?_ver=1.1.8&_lang=' + locale.split('-')[0];
+        const body = { groupId: targetShare.groupId, localCountry: (uri.searchParams.get('local_country') || 'AE').toUpperCase(), userLocalSizeCountry: '' };
+        const result = await page.evaluate(async ({ endpoint, body }) => {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 10_000);
+          try {
+            const response = await fetch(endpoint, {
+              method: 'POST', credentials: 'include', signal: controller.signal,
+              headers: { 'accept': 'application/json, text/plain, */*',
+                'content-type': 'application/json',
+                'x-requested-with': 'XMLHttpRequest', appcurrency: 'USD' },
+              body: JSON.stringify(body),
+            });
+            const text = await response.text();
+            return { status: response.status, text: text.length <= 2_500_000 ? text : '' };
+          } catch { return { status: 0, text: '' }; }
+          finally { clearTimeout(timeout); }
+        }, { endpoint, body }).catch(() => ({ status: 0, text: '' }));
+        if (result.text) {
+          const payload = JSON.parse(result.text);
+          captureBoundBff(parseSheinShareBff(payload, {
+            url: endpoint, method: 'POST', requestBody: body,
+            expectedGroupId: targetShare.groupId,
+          }));
+        }
+      } catch {}
+      await Promise.allSettled(responseTasks);
+    }
 
     const domSnapshot = await page.evaluate(() => {
       const abs = value => {
@@ -612,6 +672,10 @@ if (!allowed(targetUrl)) {
       const diagnosticMeta = {
         shared_items_landing:true,
         ...evidenceMeta,
+        bound_bff_response_count:bffBoundResponseCount,
+        bound_bff_candidate_count:bffCandidateCount,
+        bound_bff_valid_item_count:bffSharedRows.size,
+        bound_bff_missing_usd_count:bffMissingUsdPriceCount,
         sharedPageEvidence:true,
         visible_product_count:visibleProductCount,
         visible_product_count_before_network_fallback:visibleProductCountBeforeNetworkFallback,
@@ -627,7 +691,21 @@ if (!allowed(targetUrl)) {
         inspected_response_count:inspectedResponseCount,
       };
 
-      if (visibleProductCount === 0) {
+      if (bffSharedRows.size > 0 && bffMissingUsdPriceCount === 0) {
+        out({
+          ok:true, status:'loaded', final_url:finalUrl,
+          items:[...bffSharedRows.values()].slice(0, MAX_ITEMS),
+          payloads:[],
+          meta:{ ...diagnosticMeta, final_item_count:bffSharedRows.size,
+            network_item_count:bffSharedRows.size, trusted_source:'bound_share_bff' },
+        });
+      } else if (bffSharedRows.size > 0 && bffMissingUsdPriceCount > 0) {
+        out({
+          ok:true, status:'missing_usd_prices',
+          message:'تم العثور على منتجات السلة، لكن بعض أسعارها بالدولار غير مؤكدة.',
+          final_url:finalUrl, items:[], payloads:[], meta:diagnosticMeta,
+        });
+      } else if (visibleProductCount === 0) {
         out({
           ok:true,
           status:'shared_page_unreadable',
