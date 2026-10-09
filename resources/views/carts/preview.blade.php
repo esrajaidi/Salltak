@@ -12,6 +12,8 @@
         'SAR' => 'ريال سعودي',
         default => strtoupper($currency),
     };
+    $isSheinShare = !empty($result->meta['group_id']);
+    $uaePriceVerified = (bool) ($result->meta['pricing_country_verified'] ?? false);
     $countryLabel = match(strtoupper((string)($result->meta['local_country'] ?? ''))) {
         'AE' => 'الإمارات',
         'SA' => 'السعودية',
@@ -25,7 +27,7 @@
             <div>
                 <div class="page-kicker">قبل الحفظ</div>
                 <h1 class="page-heading">راجع سلتك</h1>
-                <p class="page-subtitle">الأسعار مستوردة من المتجر وثابتة. تقدر تغيّر الكمية أو تحذف منتج قبل حفظ السلة.</p>
+                <p class="page-subtitle">الأسعار المستوردة تقديرية حتى تأكيد الشراء، وتقدر تغيّر الكمية أو تحذف منتج قبل الحفظ.</p>
             </div>
             <a class="btn btn-ghost icon-text-btn" href="{{ route('carts.create') }}"><x-icon name="arrow-left" size="18" /> تغيير الرابط</a>
         </div>
@@ -47,7 +49,13 @@
                     <div>
                         <div class="small text-secondary">سلة SHEIN المشتركة</div>
                         <div class="fw-bold mt-1">رقم المجموعة <span class="ltr d-inline-block">#{{ $result->meta['group_id'] }}</span></div>
-                        @if($countryLabel)<div class="small text-secondary mt-1">بلد السلة: {{ $countryLabel }}</div>@endif
+                        @if($countryLabel)<div class="small text-secondary mt-1">بلد الرابط الأصلي: {{ $countryLabel }}</div>@endif
+                        <div class="small fw-semibold mt-1">بلد التسعير المطلوب: الإمارات (AE)</div>
+                        @if($uaePriceVerified)
+                            <div class="small text-success mt-1">تم التحقق من أن الاستجابة تعرض أسعار الإمارات (AED). تظهر في سلتك بالدولار من الاستجابة نفسها، قبل كوبونات الحساب.</div>
+                        @else
+                            <div class="small text-warning-emphasis mt-1">لم يتم تأكيد أن الأسعار إماراتية. راجع السعر من حساب الشراء قبل تأكيد الطلب.</div>
+                        @endif
                     </div>
                     <form method="POST" action="{{ route('carts.analyze') }}" class="m-0">
                         @csrf
@@ -80,7 +88,7 @@
                     <div class="cart-toolbar d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 mb-3">
                         <div>
                             <h2 class="h5 fw-bold mb-1">منتجات السلة</h2>
-                            <div class="small text-secondary">سعر ثابت من المتجر — لا يمكن تغييره من حساب العميل.</div>
+                            <div class="small text-secondary">سعر مستورد من المتجر — قد يختلف عن سعر حساب الشراء بعد الخصومات.</div>
                         </div>
                         <div class="price-lock-pill"><x-icon name="check" size="16" /> الأسعار محمية</div>
                     </div>
@@ -125,7 +133,7 @@
                                                 <div class="price-box">
                                                     <span class="price-label">سعر القطعة</span>
                                                     <div class="price-value original-price">{{ number_format((float)($item['unit_price_original'] ?? 0), 2) }} {{ $currencyLabel }}</div>
-                                                    <div class="price-lock-note"><x-icon name="check" size="14" /> سعر ثابت من المتجر</div>
+                                                    <div class="price-lock-note"><x-icon name="check" size="14" /> السعر المستورد قبل كوبونات الحساب</div>
                                                 </div>
                                                 <div class="price-box lyd">
                                                     <span class="price-label">بالدينار الليبي</span>
