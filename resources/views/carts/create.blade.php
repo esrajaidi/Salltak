@@ -6,7 +6,7 @@
         <div class="row justify-content-center">
             <div class="col-xl-9 col-xxl-8">
                 <div class="d-flex flex-column flex-md-row align-items-md-end justify-content-between gap-3 mb-4 reveal is-visible">
-                    <div><div class="page-kicker">إضافة سلة</div><h1 class="page-heading">ألصق رابط سلتك</h1><p class="page-subtitle">ألصق رابط مشاركة السلة من SHEIN وسنجلب المنتجات الحقيقية والصور والمقاسات والأسعار بالدولار ثم نحسبها بالدينار.</p></div>
+                    <div><div class="page-kicker">إضافة سلة</div><h1 class="page-heading">ألصق رابط سلتك</h1><p class="page-subtitle">ألصق رابط SHEIN من أي دولة. سنطلب تسعير الإمارات (AE) تلقائيًا، ونعرض المنتجات وأسعارها بالدولار والدينار عند توفرها، مع توضيح إن كان سعر الإمارات مؤكدًا.</p></div>
                     <a class="btn btn-ghost icon-text-btn" href="{{ route('carts.index') }}"><x-icon name="carts"/>سلاتي</a>
                 </div>
 
@@ -19,6 +19,7 @@
                             <button class="btn btn-primary px-4 icon-text-btn flex-shrink-0" type="submit"><x-icon name="search"/><span class="submit-label">جلب السلة</span><span class="spinner-border spinner-border-sm d-none" aria-hidden="true"></span></button>
                         </div>
                         <div class="form-text mt-2">يمكنك لصق <strong>الرابط فقط</strong> أو <strong>نص المشاركة كاملًا</strong> من SHEIN، وسنستخرج الرابط تلقائيًا.</div>
+                        <div class="form-text mt-2">بلد تسعير SHEIN المعتمد: <strong>الإمارات (AE)</strong> مهما كانت دولة الرابط الأصلي. السعر المعروض قبل كوبونات حساب الشراء وقد يحتاج إلى تأكيد.</div>
                     </form>
 
                     <div class="row g-3 mt-4">

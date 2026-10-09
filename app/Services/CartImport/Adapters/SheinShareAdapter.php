@@ -36,30 +36,37 @@ class SheinShareAdapter implements CartSourceAdapter
         $httpStatus = null;
         $httpError = null;
 
-        // Fast path: some SHEIN responses still expose enough JSON in the raw HTML.
-        try {
-            $response = $this->fetch($url);
-            $httpStatus = $response->status();
+        // Share carts must use a region-checked browser response; directly
+        // scraping a foreign-origin HTML price cannot establish an AE price.
+        $isSharedCart = str_contains(strtolower($url), 'group_id=')
+            || str_contains(strtolower($url), '/cart/share/')
+            || str_contains(strtolower($url), 'cart_share=1')
+            || str_contains(strtolower($url), 'onelink.shein.com');
+        if (! $isSharedCart) {
+            try {
+                $response = $this->fetch($url);
+                $httpStatus = $response->status();
 
-            if ($response->successful()) {
-                $items = $this->extractProducts($response->body(), $url, $fallbackCurrency);
-                if ($items !== []) {
-                    $currency = strtoupper((string) ($items[0]['currency'] ?? $fallbackCurrency));
+                if ($response->successful()) {
+                    $items = $this->extractProducts($response->body(), $url, $fallbackCurrency);
+                    if ($items !== []) {
+                        $currency = strtoupper((string) ($items[0]['currency'] ?? $fallbackCurrency));
 
-                    return ImportResult::success(
-                        $items,
-                        $currency,
-                        array_merge($shareMeta, [
-                            'source' => 'shein_http',
-                            'items_count' => count($items),
-                            'http_status' => $httpStatus,
-                        ])
-                    );
+                        return ImportResult::success(
+                            $items,
+                            $currency,
+                            array_merge($shareMeta, [
+                                'source' => 'shein_http',
+                                'items_count' => count($items),
+                                'http_status' => $httpStatus,
+                            ])
+                        );
+                    }
                 }
+            } catch (\Throwable $e) {
+                report($e);
+                $httpError = class_basename($e);
             }
-        } catch (\Throwable $e) {
-            report($e);
-            $httpError = class_basename($e);
         }
 
         // Real-browser fallback: SHEIN often hydrates shared-cart items only after JS runs.
@@ -68,11 +75,7 @@ class SheinShareAdapter implements CartSourceAdapter
 
         if ($browserItems !== []) {
             $currency = strtoupper((string) ($browserItems[0]['currency'] ?? $fallbackCurrency));
-
-            return ImportResult::success(
-                $browserItems,
-                $currency,
-                array_merge($shareMeta, [
+            $browserMeta = array_merge($shareMeta, [
                     'source' => 'shein_playwright',
                     'items_count' => count($browserItems),
                     'http_status' => $httpStatus,
@@ -87,8 +90,20 @@ class SheinShareAdapter implements CartSourceAdapter
                     'browser_direct_bff_matched_items' => (int) ($browser['meta']['direct_bff_matched_items'] ?? 0),
                     'browser_import_attempt_count' => (int) ($browser['meta']['import_attempt_count'] ?? 1),
                     'browser_fresh_profile_retry' => (bool) ($browser['meta']['fresh_profile_retry'] ?? false),
-                ])
-            );
+                    'pricing_country_requested' => $browser['meta']['pricing_country_requested'] ?? 'AE',
+                    'pricing_country_verified' => (bool) ($browser['meta']['pricing_country_verified'] ?? false),
+                    'pricing_evidence' => $browser['meta']['pricing_evidence'] ?? 'unconfirmed',
+                ]);
+            if (($browser['status'] ?? '') === 'ae_price_unverified') {
+                return ImportResult::needsReview(
+                    'تم جلب المنتجات، لكن تعذر إثبات أن السعر خاص بالإمارات. راجع السعر من حساب الشراء قبل تأكيد الطلب.',
+                    items: $browserItems,
+                    currency: $currency,
+                    meta: $browserMeta
+                );
+            }
+
+            return ImportResult::success($browserItems, $currency, $browserMeta);
         }
 
         $browserStatus = (string) ($browser['status'] ?? 'failed');
@@ -108,6 +123,8 @@ class SheinShareAdapter implements CartSourceAdapter
             'browser_import_attempt_count' => (int) ($browser['meta']['import_attempt_count'] ?? 1),
             'browser_fresh_profile_retry' => (bool) ($browser['meta']['fresh_profile_retry'] ?? false),
             'browser_retry_status' => $browser['meta']['retry_status'] ?? null,
+            'pricing_country_requested' => $browser['meta']['pricing_country_requested'] ?? 'AE',
+            'pricing_country_verified' => (bool) ($browser['meta']['pricing_country_verified'] ?? false),
         ]);
 
         if ($browserStatus === 'challenge') {

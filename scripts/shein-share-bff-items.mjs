@@ -1,4 +1,5 @@
 import { parseSheinGoodsAttr } from './shein-goods-attr.mjs';
+import { isAedPrice } from './shein-ae-pricing.mjs';
 
 // This parser only trusts rows from the exact SHEIN shared-cart BFF POST,
 // when the POST's groupId matches the group_id on the user's shared link.
@@ -12,7 +13,7 @@ function isSharedEndpoint(value) {
   } catch { return false; }
 }
 
-function validRequest(body, expectedGroupId) {
+function validRequest(body, expectedGroupId, expectedCountry = '') {
   if (!String(expectedGroupId || '').trim()) return false;
   let data = body;
   if (typeof data === 'string') {
@@ -20,7 +21,8 @@ function validRequest(body, expectedGroupId) {
   }
   return Boolean(data && typeof data === 'object'
     && !Array.isArray(data)
-    && String(data.groupId || '').trim() === String(expectedGroupId).trim());
+    && String(data.groupId || '').trim() === String(expectedGroupId).trim()
+    && (!expectedCountry || String(data.localCountry || '').toUpperCase() === expectedCountry));
 }
 
 function amount(value) {
@@ -67,11 +69,11 @@ function toItem(p) {
 }
 
 export function parseSheinShareBff(payload, {
-  url = '', method = '', requestBody = null, expectedGroupId = '',
+  url = '', method = '', requestBody = null, expectedGroupId = '', expectedCountry = '',
 } = {}) {
-  const empty = { bound: false, items: [], candidateCount: 0, missingUsdPriceCount: 0 };
+  const empty = { bound: false, items: [], candidateCount: 0, missingUsdPriceCount: 0, aePriceVerified: false, aeEvidenceCount: 0 };
   if (!isSharedEndpoint(url) || String(method).toUpperCase() !== 'POST'
-    || !validRequest(requestBody, expectedGroupId)) return empty;
+    || !validRequest(requestBody, expectedGroupId, expectedCountry)) return empty;
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)
     || String(payload.code ?? '') !== '0') return empty;
   const info = payload.info;
@@ -87,10 +89,12 @@ export function parseSheinShareBff(payload, {
   const items = [];
   const seen = new Set();
   let missingUsdPriceCount = 0;
+  let aeEvidenceCount = 0;
   for (const entry of arrays.flat()) {
     const item = toItem(entry);
     if (!item) continue;
     if (!(item.unit_price_original > 0)) { missingUsdPriceCount++; continue; }
+    if (isAedPrice(entry.salePrice || entry.sale_price)) aeEvidenceCount++;
     const key = [item.external_id, item.variant, item.color, item.size].join('|');
     if (seen.has(key)) continue;
     seen.add(key);
@@ -101,5 +105,9 @@ export function parseSheinShareBff(payload, {
     items: items.slice(0, 60),
     candidateCount,
     missingUsdPriceCount,
+    aeEvidenceCount,
+    // A price with explicit AED evidence is still a public storefront quote,
+    // never a guarantee about an account-specific coupon or checkout total.
+    aePriceVerified: expectedCountry === 'AE' && aeEvidenceCount === candidateCount && candidateCount > 0,
   };
 }
