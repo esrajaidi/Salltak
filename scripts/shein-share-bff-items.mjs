@@ -56,7 +56,7 @@ function toItem(p) {
   return {
     external_id: externalId,
     name,
-    product_url: 'https://ar.shein.com/product-p-' + encodeURIComponent(externalId) + '.html',
+    product_url: 'https://www.shein.com/product-p-' + encodeURIComponent(externalId) + '.html',
     image_url: img(p.goods_img || p.goodsImg),
     variant: String(p.sku_code || p.itemSku || attr).trim().slice(0, 180),
     color: option.color,
