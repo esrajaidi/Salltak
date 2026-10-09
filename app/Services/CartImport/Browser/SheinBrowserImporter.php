@@ -121,6 +121,16 @@ class SheinBrowserImporter
             }
 
             if (($shared['items'] ?? []) !== []) {
+                // A SHEIN redirect can lead www storefront navigation to a
+                // mobile API. The true BFF response host is more trustworthy
+                // than the URL we originally asked Chromium to open.
+                $actualBffHost = (string) ($shared['meta']['bound_bff_response_host'] ?? '');
+                if ($actualBffHost === 'm.shein.com') {
+                    $shared['status'] = 'mobile_share_price_needs_review';
+                    $shared['message'] = 'تمت إعادة توجيه قراءة السلة إلى خدمة SHEIN المتنقلة. الأسعار للمراجعة وليست أسعار حساب الشراء المؤكدة.';
+                    $shared['meta']['mobile_fallback_used'] = true;
+                    $shared['meta']['share_fetch_host'] = 'm.shein.com';
+                }
                 // Applying cookies does not prove that SHEIN priced the BFF
                 // response for the logged-in purchaser. Manual comparison is
                 // required before checkout even for AED storefront evidence.
