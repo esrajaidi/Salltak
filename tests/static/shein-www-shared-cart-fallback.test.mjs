@@ -31,6 +31,8 @@ test('mobile fallback is explicitly marked unverified and does not reuse an unre
   assert.match(browser, /'shared_guest_fallback', \$traceId, null, 'm\.shein\.com'/);
   assert.match(worker, /uaeSharedLandingUrl\(targetUrl, '', shareHost\)/);
   assert.match(worker, /uaeShareRequest\(finalUrl, targetShare\.groupId, shareHost\)/);
+  assert.match(worker, /bound_bff_response_host:boundBffResponseHost/);
+  assert.match(browser, /\$actualBffHost === 'm\.shein\.com'/);
   assert.match(adapter, /'mobile_share_price_needs_review', 'account_price_unverified'/);
   assert.match(adapter, /ImportResult::needsReview\(/);
 });
