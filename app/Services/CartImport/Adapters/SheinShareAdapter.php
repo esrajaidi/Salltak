@@ -5,6 +5,7 @@ namespace App\Services\CartImport\Adapters;
 use App\Models\Store;
 use App\Services\CartImport\Contracts\CartSourceAdapter;
 use App\Services\CartImport\ImportResult;
+use App\Services\CartImport\SheinProductUrl;
 use App\Services\CartImport\Browser\SheinBrowserImporter;
 use App\Services\StoreUrlClassifier;
 use Illuminate\Http\Client\Response;
@@ -189,7 +190,7 @@ class SheinShareAdapter implements CartSourceAdapter
             $items[] = [
                 'external_id' => (string) ($item['external_id'] ?? ''),
                 'name' => trim((string) ($item['name'] ?? '')),
-                'product_url' => $this->normalizeUrl((string) ($item['product_url'] ?? ''), $sourceUrl),
+                'product_url' => SheinProductUrl::canonicalize($this->normalizeUrl((string) ($item['product_url'] ?? ''), $sourceUrl)),
                 'image_url' => $this->normalizeUrl((string) ($item['image_url'] ?? ''), $sourceUrl),
                 'variant' => trim((string) ($item['variant'] ?? '')),
                 'color' => trim((string) ($item['color'] ?? '')),
@@ -217,7 +218,7 @@ class SheinShareAdapter implements CartSourceAdapter
             'Accept-Language' => 'ar-AE,ar;q=0.9,en-US;q=0.8,en;q=0.7',
             'Cache-Control' => 'no-cache',
             'Pragma' => 'no-cache',
-            'Referer' => 'https://m.shein.com/',
+            'Referer' => 'https://www.shein.com/',
             'Sec-Fetch-Dest' => 'document',
             'Sec-Fetch-Mode' => 'navigate',
             'Sec-Fetch-Site' => 'same-origin',
@@ -268,7 +269,7 @@ class SheinShareAdapter implements CartSourceAdapter
             $items[] = [
                 'external_id' => (string) ($node['sku'] ?? ''),
                 'name' => (string) ($node['name'] ?? ''),
-                'product_url' => $this->normalizeUrl((string) ($node['url'] ?? ''), $sourceUrl),
+                'product_url' => SheinProductUrl::canonicalize($this->normalizeUrl((string) ($node['url'] ?? ''), $sourceUrl)),
                 'image_url' => $this->normalizeUrl(is_array($node['image'] ?? null) ? (string) (($node['image'][0] ?? '')) : (string) ($node['image'] ?? ''), $sourceUrl),
                 'variant' => '',
                 'color' => '',
@@ -592,7 +593,7 @@ class SheinShareAdapter implements CartSourceAdapter
         return [
             'external_id' => $externalId,
             'name' => $name,
-            'product_url' => $this->normalizeUrl($productUrl, $sourceUrl),
+            'product_url' => SheinProductUrl::canonicalize($this->normalizeUrl($productUrl, $sourceUrl)),
             'image_url' => $this->normalizeUrl($image, $sourceUrl),
             'variant' => $variant,
             'color' => $color,
