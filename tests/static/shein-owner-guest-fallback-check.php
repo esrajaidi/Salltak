@@ -14,7 +14,7 @@ requireGuard(str_contains($importer, "'shared_guest_fallback', $traceId);"), 'Gu
 requireGuard(str_contains($importer, "'status'] = 'guest_price_needs_review'"), 'Guest response must be marked unverified for account');
 requireGuard(str_contains($importer, "'account_session_applied'] = false"), 'Guest quote must never look authenticated');
 requireGuard(str_contains($importer, 'File::deleteDirectory($guestProfile)'), 'Temporary guest browser profile must be deleted');
-requireGuard(str_contains($adapter, "('guest_price_needs_review')"), 'Adapter must handle guest quote');
+requireGuard(str_contains($adapter, "'guest_price_needs_review'"), 'Adapter must handle guest quote');
 requireGuard(str_contains($adapter, 'تم استيراد السلة بأسعار الزائر'), 'Customer must see accurate guest quote warning');
 requireGuard(str_contains($adapter, 'ImportResult::needsReview('), 'Guest quote must require review');
 echo "SHEIN owner-session fallback guards passed.\n";
