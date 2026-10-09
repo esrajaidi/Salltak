@@ -32,3 +32,10 @@ test('share-looking URLs do not fall through to the legacy importer after strict
   assert.match(importer, /private function isSharedCartUrl\(string \$url\): bool/);
   assert.match(importer, /if \(\$this->isSharedCartUrl\(\$url\)\)\s*\{\s*return \$sharedRetry;/s);
 });
+
+test('desktop retry launches only one Chromium session and preserves the original share URL', () => {
+  assert.doesNotMatch(retryWorker, /chromium\.launchPersistentContext/);
+  assert.match(retryWorker, /url:\s*targetUrl/);
+  assert.match(retryWorker, /spawnSync\(process\.execPath, \[strictWorker\]/);
+  assert.match(retryWorker, /child\.error\.code === 'ETIMEDOUT'/);
+});
