@@ -9,6 +9,7 @@ use App\Services\CartImport\SheinSharedCartInput;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Process;
 use Illuminate\Validation\ValidationException;
 
 class SheinAccountSessionController extends Controller
@@ -65,6 +66,75 @@ class SheinAccountSessionController extends Controller
             'first_price_usd' => $item['unit_price_original'] ?? null,
             'account_session_applied' => (bool) ($result['meta']['account_session_applied'] ?? false),
             'ae_price_verified' => (bool) ($result['meta']['pricing_country_verified'] ?? false),
+        ]);
+    }
+
+    /**
+     * Diagnostic only: compare the same SHEIN product on www with and without
+     * the owner-provided session. Nothing here updates customer/cart prices.
+     */
+    public function probeProductPrice(Request $request)
+    {
+        $data = $request->validate([
+            'product_url' => ['required', 'url:http,https', 'max:2000'],
+        ]);
+        $url = trim($data['product_url']);
+        $parsed = parse_url($url);
+        if (! is_array($parsed)
+            || strtolower((string) ($parsed['scheme'] ?? '')) !== 'https'
+            || strtolower((string) ($parsed['host'] ?? '')) !== 'www.shein.com'
+            || isset($parsed['user']) || isset($parsed['pass']) || isset($parsed['port'])
+            || ! preg_match('~(?:^|[-/])p-\d{4,20}\.html$~i', (string) ($parsed['path'] ?? ''))) {
+            throw ValidationException::withMessages([
+                'product_url' => 'الصقي رابط منتج SHEIN من www.shein.com ينتهي بـ -p-رقم.html.',
+            ]);
+        }
+
+        $state = $this->vault->read(true);
+        if (! $state) {
+            throw ValidationException::withMessages([
+                'product_url' => 'ارفعي جلسة SHEIN المحفوظة من www.shein.com أولًا.',
+            ]);
+        }
+
+        $script = base_path('scripts/shein-www-account-price-probe.mjs');
+        if (! is_file($script)) {
+            return back()->with('shein_price_probe_result', ['status' => 'unavailable']);
+        }
+
+        $payload = json_encode(['url' => $url, 'accountSession' => $state], JSON_THROW_ON_ERROR);
+        $process = Process::timeout(105)->input($payload)->run([
+            (string) config('services.cart_import.shein_browser.node_binary', 'node'), $script,
+        ]);
+        $result = json_decode($process->output(), true);
+        if (! is_array($result) || ($result['status'] ?? '') !== 'probed') {
+            return back()->with('shein_price_probe_result', [
+                'status' => (string) ($result['status'] ?? 'failed'),
+                'message' => 'تعذر مقارنة الأسعار؛ قد يطلب SHEIN إعادة تسجيل الدخول أو يمنع القراءة الآلية.',
+            ]);
+        }
+
+        $cleanObservation = static function (mixed $result): array {
+            if (! is_array($result)) return ['status' => 'failed', 'prices' => []];
+            $prices = [];
+            foreach (array_slice((array) ($result['visibleUsdCandidates'] ?? []), 0, 8) as $price) {
+                if (is_array($price) && is_numeric($price['value'] ?? null)) {
+                    $amount = (float) $price['value'];
+                    if ($amount > 0 && $amount < 20000) $prices[] = $amount;
+                }
+            }
+            return [
+                'status' => (string) ($result['status'] ?? 'failed'),
+                'final_host' => (string) ($result['finalHost'] ?? ''),
+                'prices' => $prices,
+            ];
+        };
+
+        return back()->with('shein_price_probe_result', [
+            'status' => 'probed',
+            'owner' => $cleanObservation($result['owner'] ?? []),
+            'guest' => $cleanObservation($result['guest'] ?? []),
+            'confirmed' => false,
         ]);
     }
 
