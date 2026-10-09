@@ -48,13 +48,43 @@ class SheinBrowserImporter
         if (is_file($sharedPageScript)) {
             $sharedProfile = storage_path('app/shein-shared-page-profile/'.Str::uuid());
             try {
-                $shared = $this->runWorker($url, $sharedProfile, $sharedPageScript, 'shared_mobile', $traceId, $accountState);
+                $shared = $this->runWorker($url, $sharedProfile, $sharedPageScript, 'shared_www', $traceId, $accountState, 'www.shein.com');
             } finally {
                 File::deleteDirectory($sharedProfile);
             }
 
             $shared = $this->withAttemptMeta($shared, 1, false);
             $shared['meta']['source'] = 'shein_shared_items_page';
+            $shared['meta']['share_fetch_host'] = 'www.shein.com';
+
+            // Use the user's purchasing site for the first attempt. If SHEIN
+            // does not offer the shared-cart API on www, preserve the products
+            // through an explicitly labeled mobile-service fallback.
+            if ($this->isSharedCartUrl($url) && ($shared['items'] ?? []) === []) {
+                $mobileProfile = storage_path('app/shein-shared-mobile-fallback/'.Str::uuid());
+                try {
+                    $mobile = $this->runWorker(
+                        $url, $mobileProfile, $sharedPageScript,
+                        'shared_mobile_fallback', $traceId, $accountState, 'm.shein.com'
+                    );
+                } finally {
+                    File::deleteDirectory($mobileProfile);
+                }
+
+                if (($mobile['items'] ?? []) !== []) {
+                    $mobile = $this->withAttemptMeta($mobile, 2, true);
+                    $mobile['items'] = SheinImportedItemCleaner::clean($mobile['items']);
+                    $mobile['status'] = 'mobile_share_price_needs_review';
+                    $mobile['message'] = 'تعذر جلب السلة من www.shein.com. تم استرجاعها من خدمة المشاركة m.shein.com بأسعار تحتاج مراجعة من حساب الشراء.';
+                    $mobile['meta']['www_attempt_status'] = (string) ($shared['status'] ?? 'failed');
+                    $mobile['meta']['mobile_fallback_used'] = true;
+                    $mobile['meta']['share_fetch_host'] = 'm.shein.com';
+                    return $mobile;
+                }
+
+                $shared['meta']['mobile_fallback_status'] = (string) ($mobile['status'] ?? 'failed');
+                $shared['meta']['mobile_fallback_empty'] = true;
+            }
 
             // A logged-in SHEIN browser can display a different page and
             // return no shared items even while the unauthenticated share API
@@ -64,7 +94,7 @@ class SheinBrowserImporter
             if ($accountState !== null && $this->isSharedCartUrl($url) && ($shared['items'] ?? []) === []) {
                 $guestProfile = storage_path('app/shein-shared-page-guest/'.Str::uuid());
                 try {
-                    $guest = $this->runWorker($url, $guestProfile, $sharedPageScript, 'shared_guest_fallback', $traceId);
+                    $guest = $this->runWorker($url, $guestProfile, $sharedPageScript, 'shared_guest_fallback', $traceId, null, 'm.shein.com');
                 } finally {
                     File::deleteDirectory($guestProfile);
                 }
@@ -91,6 +121,23 @@ class SheinBrowserImporter
             }
 
             if (($shared['items'] ?? []) !== []) {
+                // A SHEIN redirect can lead www storefront navigation to a
+                // mobile API. The true BFF response host is more trustworthy
+                // than the URL we originally asked Chromium to open.
+                $actualBffHost = (string) ($shared['meta']['bound_bff_response_host'] ?? '');
+                if ($actualBffHost === 'm.shein.com') {
+                    $shared['status'] = 'mobile_share_price_needs_review';
+                    $shared['message'] = 'تمت إعادة توجيه قراءة السلة إلى خدمة SHEIN المتنقلة. الأسعار للمراجعة وليست أسعار حساب الشراء المؤكدة.';
+                    $shared['meta']['mobile_fallback_used'] = true;
+                    $shared['meta']['share_fetch_host'] = 'm.shein.com';
+                }
+                // Applying cookies does not prove that SHEIN priced the BFF
+                // response for the logged-in purchaser. Manual comparison is
+                // required before checkout even for AED storefront evidence.
+                if ($accountState !== null && (string) ($shared['status'] ?? '') === 'loaded') {
+                    $shared['status'] = 'account_price_unverified';
+                    $shared['message'] = 'تم جلب منتجات السلة من www.shein.com، لكن لم يتم إثبات تطابق السعر مع حساب الشراء. راجعي الأسعار.';
+                }
                 if (SheinImportedItemCleaner::needsEnrichment($shared['items'])) {
                     $fallbackProfile = storage_path('app/shein-browser-enrichment/'.Str::uuid());
                     try {
@@ -191,10 +238,10 @@ class SheinBrowserImporter
         return $retry;
     }
 
-    private function runWorker(string $url, string $profileDir, string $script, string $stage, string $traceId, ?array $accountState = null): array
+    private function runWorker(string $url, string $profileDir, string $script, string $stage, string $traceId, ?array $accountState = null, string $shareHost = 'www.shein.com'): array
     {
         $startedAt = microtime(true);
-        $result = $this->runWorkerRaw($url, $profileDir, $script, $accountState);
+        $result = $this->runWorkerRaw($url, $profileDir, $script, $accountState, $shareHost);
 
         Log::channel('stderr')->info('SHEIN import attempt', SheinImportDiagnostics::attempt(
             $result,
@@ -206,7 +253,7 @@ class SheinBrowserImporter
         return $result;
     }
 
-    private function runWorkerRaw(string $url, string $profileDir, string $script, ?array $accountState = null): array
+    private function runWorkerRaw(string $url, string $profileDir, string $script, ?array $accountState = null, string $shareHost = 'www.shein.com'): array
     {
         $input = json_encode([
             'url' => $url,
@@ -216,6 +263,7 @@ class SheinBrowserImporter
             'manualChallengeWaitMs' => max(0, (int) config('services.cart_import.shein_browser.manual_challenge_wait_ms', 60_000)),
             // Only passed through STDIN to the strict share importer; never logs or URLs.
             'accountSession' => $accountState,
+            'shareHost' => $shareHost,
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
         try {

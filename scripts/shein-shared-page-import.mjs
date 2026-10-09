@@ -4,7 +4,7 @@ import process from 'node:process';
 import { chromium } from 'playwright-chromium';
 import { summarizeShareEvidence } from './shein-share-evidence.mjs';
 import { parseSheinShareBff } from './shein-share-bff-items.mjs';
-import { PRICING_COUNTRY, uaeSharedLandingUrl, uaeShareRequest } from './shein-ae-pricing.mjs';
+import { PRICING_COUNTRY, trustedShareHost, uaeSharedLandingUrl, uaeShareRequest } from './shein-ae-pricing.mjs';
 
 const MAX_RESPONSE_BYTES = 2_500_000;
 const MAX_ITEMS = 60;
@@ -223,6 +223,7 @@ async function input() {
 
 const cfg = await input();
 const targetUrl = String(cfg.url || '');
+const shareHost = trustedShareHost(cfg.shareHost);
 if (!allowed(targetUrl)) {
   out({ ok:false, status:'invalid_url', items:[], payloads:[] }, 2);
 } else {
@@ -291,8 +292,15 @@ if (!allowed(targetUrl)) {
     let bffMissingUsdPriceCount = 0;
     let bffBoundResponseCount = 0;
     let bffAePriceVerified = false;
-    const captureBoundBff = parsed => {
+    let boundBffResponseHost = '';
+    const captureBoundBff = (parsed, sourceUrl = '') => {
       if (!parsed.bound) return;
+      try {
+        const responseHost = new URL(sourceUrl).hostname.toLowerCase();
+        if (responseHost === 'www.shein.com' || responseHost === 'm.shein.com') {
+          boundBffResponseHost = responseHost;
+        }
+      } catch {}
       bffBoundResponseCount++;
       // Verified AE price rows always take precedence over an unverified
       // response. Never merge two regional price lists indiscriminately.
@@ -334,7 +342,7 @@ if (!allowed(targetUrl)) {
             expectedGroupId: shareContextFor(targetUrl, page.url()).groupId,
             expectedCountry: PRICING_COUNTRY,
           });
-          captureBoundBff(bff);
+          captureBoundBff(bff, responseUrl);
           const observation = summarizeShareEvidence({
             networkResponses: [{ url: responseUrl, payload: decoded }],
             expectedShareContext: shareContextFor(targetUrl, page.url()),
@@ -351,12 +359,12 @@ if (!allowed(targetUrl)) {
       responseTasks.push(task);
     });
 
-    const directAeLanding = uaeSharedLandingUrl(targetUrl);
+    const directAeLanding = uaeSharedLandingUrl(targetUrl, '', shareHost);
     await page.goto(directAeLanding || targetUrl, { waitUntil:'domcontentloaded', timeout:timeoutMs });
     // A short SHEIN onelink can hide the groupId until the redirect resolves.
     // Once resolved, navigate to the UAE share landing without replacing shc.
     if (!directAeLanding) {
-      const redirectedAeLanding = uaeSharedLandingUrl(targetUrl, page.url());
+      const redirectedAeLanding = uaeSharedLandingUrl(targetUrl, page.url(), shareHost);
       if (redirectedAeLanding && page.url() !== redirectedAeLanding) {
         await page.goto(redirectedAeLanding, { waitUntil:'domcontentloaded', timeout:timeoutMs });
       }
@@ -374,7 +382,7 @@ if (!allowed(targetUrl)) {
     const targetShare = shareContextFor(targetUrl, finalUrl);
     if (!bffAePriceVerified && targetShare.groupId && sheinUrl(finalUrl)) {
       try {
-        const request = uaeShareRequest(finalUrl, targetShare.groupId);
+        const request = uaeShareRequest(finalUrl, targetShare.groupId, shareHost);
         if (!request) throw new Error('Missing UAE share context');
         const { endpoint, body } = request;
         const result = await page.evaluate(async ({ endpoint, body }) => {
@@ -389,7 +397,7 @@ if (!allowed(targetUrl)) {
               body: JSON.stringify(body),
             });
             const text = await response.text();
-            return { status: response.status, text: text.length <= 2_500_000 ? text : '' };
+            return { status: response.status, text: text.length <= 2_500_000 ? text : '', responseUrl: response.url };
           } catch { return { status: 0, text: '' }; }
           finally { clearTimeout(timeout); }
         }, { endpoint, body }).catch(() => ({ status: 0, text: '' }));
@@ -399,7 +407,7 @@ if (!allowed(targetUrl)) {
             url: endpoint, method: 'POST', requestBody: body,
             expectedGroupId: targetShare.groupId,
             expectedCountry: PRICING_COUNTRY,
-          }));
+          }), result.responseUrl || endpoint);
         }
       } catch {}
       await Promise.allSettled(responseTasks);
@@ -662,6 +670,8 @@ if (!allowed(targetUrl)) {
           ...evidenceMeta,
           sharedPageEvidence:false,
           account_session_applied:accountSessionApplied,
+          share_fetch_host:shareHost,
+          bound_bff_response_host:boundBffResponseHost,
           visible_product_count:visibleProductCount,
           candidate_root_count:Number(domSnapshot.candidate_root_count || 0),
           image_candidate_count:Number(domSnapshot.image_candidate_count || 0),
@@ -736,6 +746,8 @@ if (!allowed(targetUrl)) {
         pricing_evidence:bffAePriceVerified ? 'aed_price_in_ae_share_bff' : 'unconfirmed',
         sharedPageEvidence:true,
         account_session_applied:accountSessionApplied,
+        share_fetch_host:shareHost,
+          bound_bff_response_host:boundBffResponseHost,
         visible_product_count:visibleProductCount,
         visible_product_count_before_network_fallback:visibleProductCountBeforeNetworkFallback,
         final_item_count:items.length,

@@ -47,3 +47,4 @@ jobs:
           php -l tests/static/shein-www-product-links-check.php
           php tests/static/shein-www-product-links-check.php
           node --test tests/static/shein-ae-pricing.test.mjs tests/static/shein-share-bff-items.test.mjs
+          node --test tests/static/shein-www-shared-cart-fallback.test.mjs
