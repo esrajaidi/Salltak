@@ -96,7 +96,18 @@ class SheinShareAdapter implements CartSourceAdapter
                     'pricing_evidence' => $browser['meta']['pricing_evidence'] ?? 'unconfirmed',
                     'account_session_applied' => (bool) ($browser['meta']['account_session_applied'] ?? false),
                     'owner_session_fallback' => (bool) ($browser['meta']['owner_session_fallback'] ?? false),
+                    'share_fetch_host' => $browser['meta']['share_fetch_host'] ?? null,
+                    'mobile_fallback_used' => (bool) ($browser['meta']['mobile_fallback_used'] ?? false),
                 ]);
+            if (in_array((string) ($browser['status'] ?? ''), ['mobile_share_price_needs_review', 'account_price_unverified'], true)) {
+                return ImportResult::needsReview(
+                    (string) ($browser['message'] ?? 'تم جلب المنتجات، لكن لم نتأكد من مطابقة أسعار حساب الشراء.'),
+                    items: $browserItems,
+                    currency: $currency,
+                    meta: $browserMeta
+                );
+            }
+
             if (($browser['status'] ?? '') === 'guest_price_needs_review') {
                 return ImportResult::needsReview(
                     'تم استيراد السلة بأسعار الزائر لأن جلسة حساب الشراء لم تُرجع المنتجات. راجعي السعر من حساب SHEIN قبل اعتماد الطلب.',
