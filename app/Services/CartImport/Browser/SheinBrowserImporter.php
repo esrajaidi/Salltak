@@ -2,6 +2,8 @@
 
 namespace App\Services\CartImport\Browser;
 
+use App\Services\CartImport\SheinSessionVault;
+
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Process;
@@ -9,7 +11,7 @@ use Illuminate\Support\Str;
 
 class SheinBrowserImporter
 {
-    public function import(string $url): array
+    public function import(string $url, ?bool $useOwnerSession = null): array
     {
         if (! config('services.cart_import.shein_browser.enabled', true)) {
             return [
@@ -21,6 +23,10 @@ class SheinBrowserImporter
             ];
         }
 
+        // A null override follows the vault's admin activation flag. True is
+        // only passed by the protected admin test; false always means guest.
+        $accountState = $useOwnerSession === false ? null
+            : app(SheinSessionVault::class)->read($useOwnerSession === true);
         $traceId = (string) Str::uuid();
         $script = base_path('scripts/shein-browser-import.mjs');
         $sharedPageScript = base_path('scripts/shein-shared-page-import.mjs');
@@ -42,7 +48,7 @@ class SheinBrowserImporter
         if (is_file($sharedPageScript)) {
             $sharedProfile = storage_path('app/shein-shared-page-profile/'.Str::uuid());
             try {
-                $shared = $this->runWorker($url, $sharedProfile, $sharedPageScript, 'shared_mobile', $traceId);
+                $shared = $this->runWorker($url, $sharedProfile, $sharedPageScript, 'shared_mobile', $traceId, $accountState);
             } finally {
                 File::deleteDirectory($sharedProfile);
             }
@@ -78,7 +84,7 @@ class SheinBrowserImporter
             if ($shouldRetryShared && is_file($sharedRetryScript)) {
                 $sharedRetryProfile = storage_path('app/shein-shared-page-retry/'.Str::uuid());
                 try {
-                    $sharedRetry = $this->runWorker($url, $sharedRetryProfile, $sharedRetryScript, 'shared_desktop', $traceId);
+                    $sharedRetry = $this->runWorker($url, $sharedRetryProfile, $sharedRetryScript, 'shared_desktop', $traceId, $accountState);
                 } finally {
                     File::deleteDirectory($sharedRetryProfile);
                 }
@@ -151,10 +157,10 @@ class SheinBrowserImporter
         return $retry;
     }
 
-    private function runWorker(string $url, string $profileDir, string $script, string $stage, string $traceId): array
+    private function runWorker(string $url, string $profileDir, string $script, string $stage, string $traceId, ?array $accountState = null): array
     {
         $startedAt = microtime(true);
-        $result = $this->runWorkerRaw($url, $profileDir, $script);
+        $result = $this->runWorkerRaw($url, $profileDir, $script, $accountState);
 
         Log::channel('stderr')->info('SHEIN import attempt', SheinImportDiagnostics::attempt(
             $result,
@@ -166,7 +172,7 @@ class SheinBrowserImporter
         return $result;
     }
 
-    private function runWorkerRaw(string $url, string $profileDir, string $script): array
+    private function runWorkerRaw(string $url, string $profileDir, string $script, ?array $accountState = null): array
     {
         $input = json_encode([
             'url' => $url,
@@ -174,6 +180,8 @@ class SheinBrowserImporter
             'headless' => (bool) config('services.cart_import.shein_browser.headless', true),
             'profileDir' => $profileDir,
             'manualChallengeWaitMs' => max(0, (int) config('services.cart_import.shein_browser.manual_challenge_wait_ms', 60_000)),
+            // Only passed through STDIN to the strict share importer; never logs or URLs.
+            'accountSession' => $accountState,
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
         try {
