@@ -39,3 +39,11 @@ jobs:
           php -l app/Services/CartImport/Adapters/SheinShareAdapter.php
           php -l tests/static/shein-owner-guest-fallback-check.php
           php tests/static/shein-owner-guest-fallback-check.php
+
+      - name: SHEIN www domain consistency
+        run: |
+          php -l app/Services/CartImport/SheinProductUrl.php
+          php -l database/migrations/2026_10_09_233500_normalize_existing_shein_product_hosts.php
+          php -l tests/static/shein-www-product-links-check.php
+          php tests/static/shein-www-product-links-check.php
+          node --test tests/static/shein-ae-pricing.test.mjs tests/static/shein-share-bff-items.test.mjs
