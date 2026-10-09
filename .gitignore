@@ -11,3 +11,7 @@
 composer.lock
 
 /storage/app/shein-browser-profile/
+/storage/app/shein-session/
+/storage/app/shein-session*/
+**/shein-session-state*.json
+**/shein-storage-state*.json
