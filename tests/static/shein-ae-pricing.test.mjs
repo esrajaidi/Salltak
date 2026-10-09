@@ -20,12 +20,26 @@ const payload = {
 
 test('converts a foreign shared cart into the UAE landing without altering the shared group or token', () => {
   const normalized = new URL(uaeSharedLandingUrl(saUrl));
-  assert.equal(normalized.hostname, 'm.shein.com');
+  assert.equal(normalized.hostname, 'www.shein.com');
   assert.equal(normalized.pathname, '/ar/cart/share/landing');
   assert.equal(normalized.searchParams.get('group_id'), '851956795');
   assert.equal(normalized.searchParams.get('shc'), '2_RwCnM9DrOvA');
   assert.equal(normalized.searchParams.get('local_country'), 'AE');
   assert.equal(normalized.searchParams.get('cart_share'), '1');
+});
+
+test('mobile shared-cart host is available only as an explicit fallback', () => {
+  const primary = new URL(uaeSharedLandingUrl(saUrl));
+  const fallback = new URL(uaeSharedLandingUrl(saUrl, '', 'm.shein.com'));
+  assert.equal(primary.hostname, 'www.shein.com');
+  assert.equal(fallback.hostname, 'm.shein.com');
+  assert.equal(primary.searchParams.get('group_id'), fallback.searchParams.get('group_id'));
+  assert.equal(primary.searchParams.get('shc'), fallback.searchParams.get('shc'));
+  assert.equal(primary.searchParams.get('local_country'), 'AE');
+  const mobileApi = uaeShareRequest(fallback.href, '851956795', 'm.shein.com');
+  assert.equal(new URL(mobileApi.endpoint).hostname, 'm.shein.com');
+  const invalidHost = uaeSharedLandingUrl(saUrl, '', 'evil.example');
+  assert.equal(new URL(invalidHost).hostname, 'www.shein.com');
 });
 
 test('refuses external links and keeps resolved onelink identity', () => {
@@ -43,6 +57,7 @@ test('refuses external links and keeps resolved onelink identity', () => {
 
 test('requests prices from UAE without modifying the group ID', () => {
   const req = uaeShareRequest(saUrl, '851956795');
+  assert.equal(new URL(req.endpoint).hostname, 'www.shein.com');
   assert.equal(req.body.localCountry, 'AE');
   assert.equal(req.body.groupId, '851956795');
   assert.equal(req.currency, 'AED');
