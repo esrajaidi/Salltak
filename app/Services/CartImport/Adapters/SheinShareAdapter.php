@@ -43,31 +43,30 @@ class SheinShareAdapter implements CartSourceAdapter
             || str_contains(strtolower($url), 'cart_share=1')
             || str_contains(strtolower($url), 'onelink.shein.com');
         if (! $isSharedCart) {
-        try {
-            $response = $this->fetch($url);
-            $httpStatus = $response->status();
+            try {
+                $response = $this->fetch($url);
+                $httpStatus = $response->status();
 
-            if ($response->successful()) {
-                $items = $this->extractProducts($response->body(), $url, $fallbackCurrency);
-                if ($items !== []) {
-                    $currency = strtoupper((string) ($items[0]['currency'] ?? $fallbackCurrency));
+                if ($response->successful()) {
+                    $items = $this->extractProducts($response->body(), $url, $fallbackCurrency);
+                    if ($items !== []) {
+                        $currency = strtoupper((string) ($items[0]['currency'] ?? $fallbackCurrency));
 
-                    return ImportResult::success(
-                        $items,
-                        $currency,
-                        array_merge($shareMeta, [
-                            'source' => 'shein_http',
-                            'items_count' => count($items),
-                            'http_status' => $httpStatus,
-                        ])
-                    );
+                        return ImportResult::success(
+                            $items,
+                            $currency,
+                            array_merge($shareMeta, [
+                                'source' => 'shein_http',
+                                'items_count' => count($items),
+                                'http_status' => $httpStatus,
+                            ])
+                        );
+                    }
                 }
+            } catch (\Throwable $e) {
+                report($e);
+                $httpError = class_basename($e);
             }
-        } catch (\Throwable $e) {
-            report($e);
-            $httpError = class_basename($e);
-        }
-
         }
 
         // Real-browser fallback: SHEIN often hydrates shared-cart items only after JS runs.
