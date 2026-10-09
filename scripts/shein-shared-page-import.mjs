@@ -4,7 +4,7 @@ import process from 'node:process';
 import { chromium } from 'playwright-chromium';
 import { summarizeShareEvidence } from './shein-share-evidence.mjs';
 import { parseSheinShareBff } from './shein-share-bff-items.mjs';
-import { PRICING_COUNTRY, uaeSharedLandingUrl, uaeShareRequest } from './shein-ae-pricing.mjs';
+import { PRICING_COUNTRY, trustedShareHost, uaeSharedLandingUrl, uaeShareRequest } from './shein-ae-pricing.mjs';
 
 const MAX_RESPONSE_BYTES = 2_500_000;
 const MAX_ITEMS = 60;
@@ -223,6 +223,7 @@ async function input() {
 
 const cfg = await input();
 const targetUrl = String(cfg.url || '');
+const shareHost = trustedShareHost(cfg.shareHost);
 if (!allowed(targetUrl)) {
   out({ ok:false, status:'invalid_url', items:[], payloads:[] }, 2);
 } else {
@@ -351,12 +352,12 @@ if (!allowed(targetUrl)) {
       responseTasks.push(task);
     });
 
-    const directAeLanding = uaeSharedLandingUrl(targetUrl);
+    const directAeLanding = uaeSharedLandingUrl(targetUrl, '', shareHost);
     await page.goto(directAeLanding || targetUrl, { waitUntil:'domcontentloaded', timeout:timeoutMs });
     // A short SHEIN onelink can hide the groupId until the redirect resolves.
     // Once resolved, navigate to the UAE share landing without replacing shc.
     if (!directAeLanding) {
-      const redirectedAeLanding = uaeSharedLandingUrl(targetUrl, page.url());
+      const redirectedAeLanding = uaeSharedLandingUrl(targetUrl, page.url(), shareHost);
       if (redirectedAeLanding && page.url() !== redirectedAeLanding) {
         await page.goto(redirectedAeLanding, { waitUntil:'domcontentloaded', timeout:timeoutMs });
       }
@@ -374,7 +375,7 @@ if (!allowed(targetUrl)) {
     const targetShare = shareContextFor(targetUrl, finalUrl);
     if (!bffAePriceVerified && targetShare.groupId && sheinUrl(finalUrl)) {
       try {
-        const request = uaeShareRequest(finalUrl, targetShare.groupId);
+        const request = uaeShareRequest(finalUrl, targetShare.groupId, shareHost);
         if (!request) throw new Error('Missing UAE share context');
         const { endpoint, body } = request;
         const result = await page.evaluate(async ({ endpoint, body }) => {
@@ -662,6 +663,7 @@ if (!allowed(targetUrl)) {
           ...evidenceMeta,
           sharedPageEvidence:false,
           account_session_applied:accountSessionApplied,
+          share_fetch_host:shareHost,
           visible_product_count:visibleProductCount,
           candidate_root_count:Number(domSnapshot.candidate_root_count || 0),
           image_candidate_count:Number(domSnapshot.image_candidate_count || 0),
@@ -736,6 +738,7 @@ if (!allowed(targetUrl)) {
         pricing_evidence:bffAePriceVerified ? 'aed_price_in_ae_share_bff' : 'unconfirmed',
         sharedPageEvidence:true,
         account_session_applied:accountSessionApplied,
+        share_fetch_host:shareHost,
         visible_product_count:visibleProductCount,
         visible_product_count_before_network_fallback:visibleProductCountBeforeNetworkFallback,
         final_item_count:items.length,
