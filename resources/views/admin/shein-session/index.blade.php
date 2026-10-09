@@ -37,7 +37,7 @@
     <div class="col-xl-6">
         <section class="surface-card admin-panel p-3 p-md-4 h-100">
             <h2 class="h5 fw-bold mb-3">1. تسجيل الدخول وحفظ الجلسة محليًا</h2>
-            <p class="text-secondary small">على Mac، افتحي Terminal داخل مجلد سلتك وشغّلي الأمر التالي، ثم سجّلي دخولك بنفسك في النافذة التي ستظهر. بعد التأكد من تسجيل الدخول، ارجعي للـTerminal واضغطي Enter.</p>
+            <p class="text-secondary small">على Mac، افتحي Terminal داخل مجلد سلتك وشغّلي الأمر التالي. المتصفح يفتح www.shein.com لتسجيل الدخول يدويًا. إذا غيّر SHEIN الرابط تلقائيًا، تأكدي أنك دخلتي نفس حساب الشراء قبل حفظ الجلسة. بعد التأكد من تسجيل الدخول، ارجعي للـTerminal واضغطي Enter.</p>
             <div class="bg-light border rounded-3 p-3 mb-3 text-start" dir="ltr"><code>npm run shein:login</code></div>
             <div class="small mb-3">الملف يتخزن محليًا هنا (لا ترسليه لأي شخص):</div>
             <div class="bg-light border rounded-3 p-3 text-start text-break" dir="ltr"><code>storage/app/shein-session/session.json</code></div>
