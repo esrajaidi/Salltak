@@ -98,7 +98,7 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'backoffice'])->grou
         Route::get('/shein-session', [SheinAccountSessionController::class, 'index'])->name('shein-session.index');
         Route::post('/shein-session', [SheinAccountSessionController::class, 'upload'])->middleware('throttle:3,5')->name('shein-session.upload');
         Route::post('/shein-session/test', [SheinAccountSessionController::class, 'test'])->middleware('throttle:3,5')->name('shein-session.test');
-        Route::post('/shein-session/price-probe', [SheinAccountSessionController::class, 'probeProductPrice'])->middleware('throttle:2,5')->name('shein-session.price-probe');
+        Route::post('/shein-session/price-probe', [SheinAccountSessionController::class, 'probeProductPrice'])->middleware('throttle:shein-account-price-probe')->name('shein-session.price-probe');
         Route::post('/shein-session/enable', [SheinAccountSessionController::class, 'enable'])->name('shein-session.enable');
         Route::post('/shein-session/disable', [SheinAccountSessionController::class, 'disable'])->name('shein-session.disable');
         Route::delete('/shein-session', [SheinAccountSessionController::class, 'destroy'])->middleware('throttle:3,5')->name('shein-session.destroy');
