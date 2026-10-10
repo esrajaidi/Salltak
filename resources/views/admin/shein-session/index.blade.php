@@ -114,16 +114,46 @@
                                 <div class="col-sm-6">
                                     <div class="border rounded-3 p-2 h-100">
                                         <div class="fw-bold small mb-1">{{ $label }}</div>
-                                        <div class="small text-secondary">حالة الصفحة: {{ $side['status'] ?? 'غير معروفة' }}</div>
-                                        <div class="small text-secondary">النطاق: {{ $side['final_host'] ?? 'غير متاح' }}</div>
-                                        <div class="small mt-2">
-                                            أسعار ظاهرة محتملة:
-                                            @forelse(($side['prices'] ?? []) as $price)
-                                                <span class="badge bg-light text-dark border">{{ number_format((float) $price, 2) }} $</span>
-                                            @empty
-                                                <span class="text-muted">لم تُقرأ أسعار</span>
-                                            @endforelse
-                                        </div>
+                                        @php($probeStatusLabels = [
+                                    'price_candidates_found' => 'قراءة أسعار محتملة من عناصر المنتج',
+                                    'page_loaded_without_price' => 'الصفحة فتحت لكن السعر لم يظهر للمستورد',
+                                    'security_check_possible' => 'قد تكون صفحة تحقق أمني من SHEIN',
+                                    'access_limited' => 'SHEIN قيّد الوصول مؤقتًا',
+                                    'redirected_from_www' => 'تم التوجيه بعيدًا عن www.shein.com',
+                                    'empty_page' => 'الصفحة لم تعرض بيانات منتج',
+                                    'timeout' => 'انتهت مهلة القراءة',
+                                    'page_unavailable' => 'تعذر فتح صفحة المنتج',
+                                ])
+                                <div class="small text-secondary">حالة الفحص: {{ $probeStatusLabels[$side['status'] ?? ''] ?? ($side['status'] ?? 'غير معروفة') }}</div>
+                                <div class="small text-secondary">النطاق: {{ $side['final_host'] ?? 'غير متاح' }}</div>
+                                @if(!empty($side['http_status']))
+                                    <div class="small text-secondary">حالة استجابة SHEIN: {{ $side['http_status'] }}</div>
+                                @endif
+                                <div class="small mt-2">
+                                    أسعار محتملة (غير معتمدة):
+                                    @forelse(($side['prices'] ?? []) as $price)
+                                        <span class="badge bg-light text-dark border">{{ number_format((float) ($price['value'] ?? 0), 2) }} $</span>
+                                        <span class="small text-secondary">{{ match($price['source'] ?? '') {
+                                            'product_price_dom' => 'عنصر سعر المنتج',
+                                            'possible_price_dom' => 'عنصر سعر عام',
+                                            'product_price_metadata' => 'بيانات الصفحة',
+                                            'public_structured_data' => 'بيانات عامة للمنتج',
+                                            default => 'مصدر غير مؤكد',
+                                        } }}</span>
+                                    @empty
+                                        <span class="text-muted">لم يتم العثور على سعر موثوق للعرض</span>
+                                    @endforelse
+                                </div>
+                                @if(empty($side['prices']))
+                                    <div class="small text-muted mt-2">
+                                        تشخيص: عناصر الأسعار {{ (int) ($side['indicators']['price_node_count'] ?? 0) }}،
+                                        قسم تفاصيل المنتج {{ !empty($side['indicators']['product_intro_present']) ? 'ظاهر' : 'غير ظاهر' }}،
+                                        رمز الدولار في نص الصفحة {{ !empty($side['indicators']['usd_visible']) ? 'موجود' : 'غير ظاهر' }}.
+                                        @if(!empty($side['indicators']['non_usd_currency_visible']))
+                                            قد تكون الصفحة تعرض عملة أخرى غير الدولار.
+                                        @endif
+                                    </div>
+                                @endif
                                     </div>
                                 </div>
                             @endforeach

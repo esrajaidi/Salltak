@@ -102,11 +102,27 @@ class SheinAccountSessionController extends Controller
             return back()->with('shein_price_probe_result', ['status' => 'unavailable']);
         }
 
+        // A product page may hydrate asynchronously. PHP's built-in server
+        // defaults to 30 seconds, which can terminate the request while
+        // Playwright is still comparing two separate browser contexts.
+        if (function_exists('set_time_limit')) {
+            set_time_limit(115);
+        }
+
         $payload = json_encode(['url' => $url, 'accountSession' => $state], JSON_THROW_ON_ERROR);
-        $process = Process::timeout(105)->input($payload)->run([
-            (string) config('services.cart_import.shein_browser.node_binary', 'node'), $script,
-        ]);
-        $result = json_decode($process->output(), true);
+        try {
+            $process = Process::timeout(95)->input($payload)->run([
+                (string) config('services.cart_import.shein_browser.node_binary', 'node'), $script,
+            ]);
+            $result = json_decode($process->output(), true);
+        } catch (\Throwable) {
+            // Never include the process input, its command line or the
+            // session state in error pages, logs or validation messages.
+            return back()->with('shein_price_probe_result', [
+                'status' => 'timeout',
+                'message' => 'انتهت مهلة قراءة السعر من SHEIN. لا تعيدي الضغط بسرعة؛ جرّبي مرة أخرى لاحقًا.',
+            ]);
+        }
         if (! is_array($result) || ($result['status'] ?? '') !== 'probed') {
             return back()->with('shein_price_probe_result', [
                 'status' => (string) ($result['status'] ?? 'failed'),
@@ -115,18 +131,36 @@ class SheinAccountSessionController extends Controller
         }
 
         $cleanObservation = static function (mixed $result): array {
-            if (! is_array($result)) return ['status' => 'failed', 'prices' => []];
+            if (! is_array($result)) return ['status' => 'failed', 'prices' => [], 'indicators' => []];
             $prices = [];
             foreach (array_slice((array) ($result['visibleUsdCandidates'] ?? []), 0, 8) as $price) {
                 if (is_array($price) && is_numeric($price['value'] ?? null)) {
                     $amount = (float) $price['value'];
-                    if ($amount > 0 && $amount < 20000) $prices[] = $amount;
+                    if ($amount > 0 && $amount < 20000) {
+                        $source = (string) ($price['source'] ?? '');
+                        $prices[] = [
+                            'value' => $amount,
+                            'source' => in_array($source, [
+                                'product_price_dom', 'possible_price_dom',
+                                'product_price_metadata', 'public_structured_data',
+                            ], true) ? $source : 'unverified',
+                        ];
+                    }
                 }
             }
+            $indicators = is_array($result['indicators'] ?? null) ? $result['indicators'] : [];
             return [
                 'status' => (string) ($result['status'] ?? 'failed'),
                 'final_host' => (string) ($result['finalHost'] ?? ''),
+                'http_status' => (int) ($result['httpStatus'] ?? 0),
                 'prices' => $prices,
+                'indicators' => [
+                    'product_intro_present' => (bool) ($indicators['productIntroPresent'] ?? false),
+                    'price_node_count' => max(0, min(1000, (int) ($indicators['domPriceNodeCount'] ?? 0))),
+                    'usd_visible' => (bool) ($indicators['usdVisibleInPage'] ?? false),
+                    'non_usd_currency_visible' => (bool) ($indicators['nonUsdCurrencyVisible'] ?? false),
+                    'security_check_possible' => (bool) ($indicators['challengeLikely'] ?? false),
+                ],
             ];
         };
 
