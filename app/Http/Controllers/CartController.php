@@ -37,6 +37,18 @@ class CartController extends Controller
         $request->merge(['source_url' => $normalizedSource]);
 
         $data = $request->validate(['source_url' => ['required', 'url:http,https', 'max:2000']]);
+
+        // The local PHP built-in server often has max_execution_time=30,
+        // while Playwright can legitimately take longer to load SHEIN's
+        // shared cart. Give this specific request time to complete or return
+        // a controlled timeout. Other routes keep their normal PHP limits.
+        $host = strtolower((string) parse_url($data['source_url'], PHP_URL_HOST));
+        if (($host === 'shein.com' || str_ends_with($host, '.shein.com'))
+            && function_exists('set_time_limit')) {
+            $importBudget = max(30, min(150, (int) config('services.cart_import.shein_browser.total_budget_seconds', 75)));
+            set_time_limit($importBudget + 45);
+        }
+
         $import = $this->importer->import($data['source_url']);
         $result = $import['result'];
         $store = $import['store'];
