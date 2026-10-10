@@ -102,11 +102,27 @@ class SheinAccountSessionController extends Controller
             return back()->with('shein_price_probe_result', ['status' => 'unavailable']);
         }
 
+        // A product page may hydrate asynchronously. PHP's built-in server
+        // defaults to 30 seconds, which can terminate the request while
+        // Playwright is still comparing two separate browser contexts.
+        if (function_exists('set_time_limit')) {
+            set_time_limit(115);
+        }
+
         $payload = json_encode(['url' => $url, 'accountSession' => $state], JSON_THROW_ON_ERROR);
-        $process = Process::timeout(105)->input($payload)->run([
-            (string) config('services.cart_import.shein_browser.node_binary', 'node'), $script,
-        ]);
-        $result = json_decode($process->output(), true);
+        try {
+            $process = Process::timeout(95)->input($payload)->run([
+                (string) config('services.cart_import.shein_browser.node_binary', 'node'), $script,
+            ]);
+            $result = json_decode($process->output(), true);
+        } catch (\Throwable) {
+            // Never include the process input, its command line or the
+            // session state in error pages, logs or validation messages.
+            return back()->with('shein_price_probe_result', [
+                'status' => 'timeout',
+                'message' => 'انتهت مهلة قراءة السعر من SHEIN. لا تعيدي الضغط بسرعة؛ جرّبي مرة أخرى لاحقًا.',
+            ]);
+        }
         if (! is_array($result) || ($result['status'] ?? '') !== 'probed') {
             return back()->with('shein_price_probe_result', [
                 'status' => (string) ($result['status'] ?? 'failed'),
