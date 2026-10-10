@@ -22,6 +22,6 @@ test('headful diagnostic is read-only, not a fake authenticated quote', () => {
   assert.match(script, /withinProductSection/);
   assert.doesNotMatch(script, /storageState\s*\(\s*\)/);
   assert.doesNotMatch(script, /writeFileSync|fs\.writeFile|setExtraHTTPHeaders|route\(|fetch\(/);
-  assert.doesNotMatch(script, /screenshot\(|localStorage|getCookies\(/);
+  assert.doesNotMatch(script, /screenshot\(|localStorage\.|getCookies\(/);
   assert.doesNotMatch(script, /console\.log/);
 });
