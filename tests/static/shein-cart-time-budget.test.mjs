@@ -23,6 +23,9 @@ test('all SHEIN browser worker attempts share one deadline', () => {
   assert.match(importer, /'import_budget_exhausted' => true/);
   assert.match(importer, /->timeout\(min\(\$workerSeconds,/);
   assert.match(importer, /'timeoutMs' => \$browserTimeoutMs/);
+  assert.match(importer, /str_contains\(class_basename\(\$e\), 'TimedOut'\)/);
+  assert.match(importer, /'status' => \$timedOut \? 'timeout' : 'unavailable'/);
+
   assert.match(importer, /'shared_www'/);
   assert.match(importer, /'shared_mobile_fallback'/);
 });
