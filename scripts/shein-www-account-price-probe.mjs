@@ -54,76 +54,148 @@ const output = (status, extra = {}) => {
 async function observe(context, productUrl, timeoutMs) {
   const page = await context.newPage();
   try {
-    // Bootstrap on the website on which the owner really logs in.
-    await page.goto('https://www.shein.com/', {
+    // Compare the same product with exactly the same browser locale and URL.
+    // Do not infer that a stored cookie proves SHEIN authenticated the account.
+    const response = await page.goto(productUrl, {
       waitUntil: 'domcontentloaded', timeout: timeoutMs,
     });
-    await page.goto(productUrl, { waitUntil: 'domcontentloaded', timeout: timeoutMs });
-    await page.waitForTimeout(2200);
-
+    const httpStatus = Number(response?.status() || 0);
     const host = new URL(page.url()).hostname.toLowerCase();
     if (host !== 'www.shein.com') {
-      return { status: 'redirected_from_www', finalHost: host };
+      return { status: 'redirected_from_www', finalHost: host, httpStatus };
+    }
+    if (httpStatus === 403 || httpStatus === 429) {
+      return { status: 'access_limited', finalHost: host, httpStatus };
     }
 
-    const data = await page.evaluate(() => {
-      const usd = /\$\s*(\d{1,5}(?:[.,]\d{2})?)/g;
-      const dollarValues = text => {
-        const values = [];
-        for (const match of String(text || '').matchAll(usd)) {
-          const n = Number(match[1].replace(',', ''));
-          if (n > 0 && Number.isFinite(n) && n < 20000) values.push(n);
-        }
-        return values;
-      };
+    const productId = new URL(productUrl).pathname.match(/p-(\d{4,20})\.html$/i)?.[1] || '';
+    let evidence = null;
 
-      // Prioritize price DOM near the product header. Avoid collecting
-      // recommended items elsewhere on a lengthy SHEIN product page.
-      const priceNodes = Array.from(document.querySelectorAll(
-        '[data-testid*="price" i], [class*="price" i], [id*="price" i]'
-      )).slice(0, 180);
-      const candidates = [];
-      const seen = new Set();
-      for (const el of priceNodes) {
-        const rect = el.getBoundingClientRect();
-        if (rect.width <= 0 || rect.height <= 0 || rect.top < -50 || rect.top > 1050) continue;
-        const text = (el.innerText || el.textContent || '').trim().slice(0, 180);
-        if (!text || text.length > 180) continue;
-        for (const price of dollarValues(text)) {
-          const key = price.toFixed(2);
-          if (seen.has(key)) continue;
-          seen.add(key);
-          candidates.push({ value: price, top: Math.round(rect.top) });
-          if (candidates.length >= 12) break;
-        }
-        if (candidates.length >= 12) break;
-      }
+    // SHEIN hydrates the product price client-side and may not render it within
+    // 2 seconds. Wait a short, bounded period for product evidence, not an
+    // arbitrary network-idle state (which may never arrive on retail pages).
+    for (let poll = 0; poll < 4; poll++) {
+      evidence = await page.evaluate(({ productId }) => {
+        const PRICE_RE = /(?:US\$|USD|\$)\s*([\d,]{1,9}(?:\.\d{2})?)/giu;
+        const amounts = raw => {
+          const values = [];
+          for (const match of String(raw || '').matchAll(PRICE_RE)) {
+            const n = Number(match[1].replaceAll(',', ''));
+            if (n > 0 && Number.isFinite(n) && n <= 20000) values.push(n);
+          }
+          return values;
+        };
 
-      if (!candidates.length) {
-        // This is a weak fallback and is shown as evidence, NEVER a confirmed
-        // logged-in purchase price. It can include offers or recommendations.
-        const body = (document.body?.innerText || '').slice(0, 5000);
-        for (const n of dollarValues(body)) {
+        const body = String(document.body?.innerText || '');
+        const challengeLikely = /(?:verify you are human|unusual traffic|security verification|access denied|captcha|تحقق أمني|أثبت أنك إنسان)/iu
+          .test(body.slice(0, 2500));
+        const productIntro = document.querySelector(
+          '.product-intro, [class*="product-intro__head"], [class*="product-intro__price"], [data-testid="product-detail"]'
+        );
+        const selectors = [
+          '[class*="product-intro__head-price"]',
+          '[class*="product-intro__price"]',
+          '[data-testid*="product-price" i]',
+          '[data-testid*="sale-price" i]',
+          '[class*="goods-price"]',
+          '[class*="sale-price"]',
+          '[itemprop="price"]',
+          '[data-price]',
+        ].join(',');
+        const rawNodes = Array.from(document.querySelectorAll(selectors)).slice(0, 220);
+        const candidates = [];
+        const seen = new Set();
+
+        const add = (value, source, top) => {
+          const n = Number(value);
+          if (!(n > 0 && n <= 20000) || !Number.isFinite(n)) return;
           const key = n.toFixed(2);
-          if (seen.has(key)) continue;
+          if (seen.has(key) || candidates.length >= 10) return;
           seen.add(key);
-          candidates.push({ value: n, top: -1 });
-          if (candidates.length >= 8) break;
+          candidates.push({ value: n, source, top });
+        };
+
+        for (const el of rawNodes) {
+          const rect = el.getBoundingClientRect();
+          if (rect.width <= 0 || rect.height <= 0 || rect.top < -40 || rect.top > 1400) continue;
+          const text = String(el.innerText || el.textContent || '').trim().slice(0, 320);
+          const source = el.closest('[class*="product-intro"]')
+            ? 'product_price_dom' : 'possible_price_dom';
+          // Prefer product detail prices; exclude unrelated recommendation
+          // cards, strikethrough prices and discount-only promotional banners.
+          if (el.closest('[class*="recommend"], [class*="similar"], [class*="suggest"]')
+              || el.closest('del, s, [class*="original-price"], [class*="retail-price"]')) continue;
+          for (const value of amounts(text)) {
+            add(value, source, Math.round(rect.top));
+          }
+          const priceAttr = el.getAttribute('content') || el.getAttribute('data-price');
+          if (priceAttr && /^(?:\d{1,5})(?:\.\d{1,2})?$/.test(priceAttr)) {
+            add(priceAttr, 'product_price_metadata', Math.round(rect.top));
+          }
         }
-      }
 
-      return {
-        pageTitle: (document.title || '').slice(0, 110),
-        visibleUsdCandidates: candidates,
-        rendered: Boolean(document.body?.innerText?.trim()),
-      };
-    });
+        // SHEIN sometimes emits a product offer as structured data before
+        // rendering the DOM. Treat it as *weak evidence*, not an account price.
+        const fromLd = raw => {
+          const list = Array.isArray(raw) ? raw : [raw];
+          for (const obj of list) {
+            if (!obj || typeof obj !== 'object') continue;
+            if (Array.isArray(obj['@graph'])) fromLd(obj['@graph']);
+            const t = Array.isArray(obj['@type']) ? obj['@type'] : [obj['@type']];
+            if (!t.some(x => String(x || '').toLowerCase() === 'product')) continue;
+            const url = String(obj.url || '');
+            if (url && productId && !url.includes('p-' + productId + '.html')) continue;
+            const offers = Array.isArray(obj.offers) ? obj.offers : [obj.offers];
+            for (const offer of offers) {
+              if (!offer || typeof offer !== 'object') continue;
+              if (String(offer.priceCurrency || '').toUpperCase() !== 'USD') continue;
+              const amount = Number(offer.price || offer.lowPrice || offer.priceSpecification?.price);
+              add(amount, 'public_structured_data', -1);
+            }
+          }
+        };
+        if (!candidates.length) {
+          for (const script of Array.from(document.querySelectorAll('script[type="application/ld+json"]')).slice(0, 10)) {
+            try { fromLd(JSON.parse(script.textContent || 'null')); } catch {}
+          }
+        }
 
-    return { status: data.rendered ? 'page_loaded' : 'empty_page',
-      finalHost: host, pageTitle: data.pageTitle,
-      visibleUsdCandidates: data.visibleUsdCandidates };
+        const bodyTop = body.slice(0, 6500);
+        const hasUsdAnywhere = amounts(bodyTop).length > 0;
+        const currencyNonUsd = /(?:\bAED\b|\bSAR\b|\bDZD\b|د\.إ|دج)/i.test(bodyTop);
+        return {
+          rendered: body.length > 40,
+          challengeLikely,
+          productIntroPresent: Boolean(productIntro),
+          domPriceNodeCount: rawNodes.length,
+          usdVisibleInPage: hasUsdAnywhere,
+          nonUsdCurrencyVisible: currencyNonUsd,
+          visibleUsdCandidates: candidates,
+        };
+      }, { productId });
+
+      if (evidence.visibleUsdCandidates.length || evidence.challengeLikely) break;
+      if (poll < 3) await page.waitForTimeout(poll === 0 ? 1800 : 2500);
+    }
+
+    const status = evidence?.challengeLikely ? 'security_check_possible'
+      : !evidence?.rendered ? 'empty_page'
+      : evidence?.visibleUsdCandidates.length ? 'price_candidates_found'
+      : 'page_loaded_without_price';
+
+    return {
+      status, finalHost: host, httpStatus,
+      visibleUsdCandidates: evidence?.visibleUsdCandidates || [],
+      indicators: {
+        productIntroPresent: Boolean(evidence?.productIntroPresent),
+        domPriceNodeCount: evidence?.domPriceNodeCount || 0,
+        usdVisibleInPage: Boolean(evidence?.usdVisibleInPage),
+        nonUsdCurrencyVisible: Boolean(evidence?.nonUsdCurrencyVisible),
+        challengeLikely: Boolean(evidence?.challengeLikely),
+      },
+    };
   } catch (e) {
-    // No credentials, cookies, remote HTML or arbitrary error body in output.
+    // Do not serialize URL, page HTML, cookie values or remote error bodies.
     return { status: String(e?.name || '').includes('Timeout') ? 'timeout' : 'page_unavailable' };
   } finally {
     await page.close().catch(() => {});
