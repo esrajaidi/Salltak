@@ -303,12 +303,19 @@ class SheinBrowserImporter
                     $script,
                 ]);
         } catch (\Throwable $e) {
-            report($e);
+            // Process timeouts are expected on a slow or blocked SHEIN page,
+            // not evidence of a missing Chromium installation.
+            $timedOut = str_contains(class_basename($e), 'TimedOut');
+            if (! $timedOut) {
+                report($e);
+            }
 
             return [
                 'ok' => false,
-                'status' => 'unavailable',
-                'message' => 'Could not start the Playwright browser worker.',
+                'status' => $timedOut ? 'timeout' : 'unavailable',
+                'message' => $timedOut
+                    ? 'انتهت مهلة استيراد سلة SHEIN. يمكنك المحاولة لاحقًا.'
+                    : 'Could not start the Playwright browser worker.',
                 'error' => class_basename($e),
                 'items' => [],
                 'payloads' => [],
