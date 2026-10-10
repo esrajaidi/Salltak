@@ -9,6 +9,8 @@ return [
             'headless' => filter_var(env('SHEIN_BROWSER_HEADLESS', true), FILTER_VALIDATE_BOOL),
             'timeout_ms' => (int) env('SHEIN_BROWSER_TIMEOUT_MS', 35000),
             'process_timeout' => (int) env('SHEIN_BROWSER_PROCESS_TIMEOUT', 110),
+            // Total budget for all sequential Playwright attempts in one cart import.
+            'total_budget_seconds' => (int) env('SHEIN_BROWSER_TOTAL_BUDGET_SECONDS', 75),
             'manual_challenge_wait_ms' => (int) env('SHEIN_BROWSER_MANUAL_CHALLENGE_WAIT_MS', 60000),
             'profile_dir' => env('SHEIN_BROWSER_PROFILE_DIR', storage_path('app/shein-browser-profile')),
         ],
