@@ -94,6 +94,11 @@ class SheinShareAdapter implements CartSourceAdapter
                     'pricing_country_requested' => $browser['meta']['pricing_country_requested'] ?? 'AE',
                     'pricing_country_verified' => (bool) ($browser['meta']['pricing_country_verified'] ?? false),
                     'pricing_evidence' => $browser['meta']['pricing_evidence'] ?? 'unconfirmed',
+                    // UAE currency evidence and cookie injection do not prove
+                    // account-specific purchase pricing. The current import
+                    // has no authenticated SKU-level price attestation.
+                    'account_price_verified' => false,
+                    'price_source' => 'shein_shared_cart_estimate',
                     'account_session_applied' => (bool) ($browser['meta']['account_session_applied'] ?? false),
                     'owner_session_fallback' => (bool) ($browser['meta']['owner_session_fallback'] ?? false),
                     'share_fetch_host' => $browser['meta']['share_fetch_host'] ?? null,
@@ -121,6 +126,15 @@ class SheinShareAdapter implements CartSourceAdapter
             if (($browser['status'] ?? '') === 'ae_price_unverified') {
                 return ImportResult::needsReview(
                     'تم جلب المنتجات، لكن تعذر إثبات أن السعر خاص بالإمارات. راجع السعر من حساب الشراء قبل تأكيد الطلب.',
+                    items: $browserItems,
+                    currency: $currency,
+                    meta: $browserMeta
+                );
+            }
+
+            if ($isSharedCart) {
+                return ImportResult::needsReview(
+                    'تم جلب منتجات السلة، لكن الأسعار تقديرية من مشاركة SHEIN ولم يتم إثبات أنها أسعار حساب الشراء بعد تسجيل الدخول على www.shein.com. راجعي السعر قبل اعتماد الطلب.',
                     items: $browserItems,
                     currency: $currency,
                     meta: $browserMeta
