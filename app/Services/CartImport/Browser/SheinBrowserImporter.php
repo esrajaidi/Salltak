@@ -11,6 +11,8 @@ use Illuminate\Support\Str;
 
 class SheinBrowserImporter
 {
+    private ?float $importDeadline = null;
+
     public function import(string $url, ?bool $useOwnerSession = null): array
     {
         if (! config('services.cart_import.shein_browser.enabled', true)) {
@@ -22,6 +24,11 @@ class SheinBrowserImporter
                 'payloads' => [],
             ];
         }
+
+        // One global deadline includes www, mobile, guest and legacy retries.
+        // Per-worker 110s timeouts must never add up without a bound.
+        $budget = max(30, min(150, (int) config('services.cart_import.shein_browser.total_budget_seconds', 75)));
+        $this->importDeadline = microtime(true) + $budget;
 
         // A null override follows the vault's admin activation flag. True is
         // only passed by the protected admin test; false always means guest.
@@ -255,9 +262,30 @@ class SheinBrowserImporter
 
     private function runWorkerRaw(string $url, string $profileDir, string $script, ?array $accountState = null, string $shareHost = 'www.shein.com'): array
     {
+        // Avoid launching another Chromium instance when previous attempts
+        // already consumed the complete per-request budget.
+        $secondsLeft = ($this->importDeadline ?? (microtime(true) + 75)) - microtime(true);
+        if ($secondsLeft < 12) {
+            return [
+                'ok' => false,
+                'status' => 'timeout',
+                'message' => 'انتهت مهلة جلب سلة SHEIN. جرّبي الرابط لاحقًا أو أرسليه للمراجعة.',
+                'items' => [],
+                'payloads' => [],
+                'meta' => ['import_budget_exhausted' => true],
+            ];
+        }
+
+        // Leave 3 seconds for serialization, cleanup and rendering.
+        $workerSeconds = max(10, (int) floor($secondsLeft - 3));
+        $browserTimeoutMs = max(5_000, min(
+            (int) config('services.cart_import.shein_browser.timeout_ms', 35_000),
+            ($workerSeconds - 3) * 1000
+        ));
+
         $input = json_encode([
             'url' => $url,
-            'timeoutMs' => max(5_000, (int) config('services.cart_import.shein_browser.timeout_ms', 35_000)),
+            'timeoutMs' => $browserTimeoutMs,
             'headless' => (bool) config('services.cart_import.shein_browser.headless', true),
             'profileDir' => $profileDir,
             'manualChallengeWaitMs' => max(0, (int) config('services.cart_import.shein_browser.manual_challenge_wait_ms', 60_000)),
@@ -269,7 +297,7 @@ class SheinBrowserImporter
         try {
             $result = Process::path(base_path())
                 ->input($input ?: '{}')
-                ->timeout(max(20, (int) config('services.cart_import.shein_browser.process_timeout', 110)))
+                ->timeout(min($workerSeconds, max(20, (int) config('services.cart_import.shein_browser.process_timeout', 110))))
                 ->run([
                     (string) config('services.cart_import.shein_browser.node_binary', 'node'),
                     $script,
