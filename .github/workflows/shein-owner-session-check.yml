@@ -61,3 +61,8 @@ jobs:
           php -l app/Services/CartImport/Adapters/SheinShareAdapter.php
           php -l config/services.php
           node --test tests/static/shein-cart-time-budget.test.mjs
+
+      - name: SHEIN owner-price provenance safeguards
+        run: |
+          php -l app/Services/CartImport/Adapters/SheinShareAdapter.php
+          node --test tests/static/shein-price-provenance.test.mjs
