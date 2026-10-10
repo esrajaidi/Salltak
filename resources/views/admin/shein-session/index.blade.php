@@ -88,7 +88,8 @@
             <hr class="my-4">
             <h2 class="h5 fw-bold mb-3">اختبار سعر المنتج بعد تسجيل الدخول على www.shein.com</h2>
             <p class="small text-secondary">الصقي رابط المنتج من <strong>www.shein.com</strong> لمقارنة الأسعار الظاهرة بنفس المتصفح مع وبدون جلسة حساب الشراء. هذه تجربة للمدير فقط، ولا تغيّر سلات الزبائن أو أسعارها.</p>
-            <form method="POST" action="{{ route('admin.shein-session.price-probe') }}" class="d-grid gap-2">
+            <form method="POST" action="{{ route('admin.shein-session.price-probe') }}" class="d-grid gap-2"
+                onsubmit="const submitButton = this.querySelector('button[type=submit]'); if (submitButton) { submitButton.disabled = true; submitButton.textContent = 'جارٍ مقارنة السعر...'; }">
                 @csrf
                 <label for="sheinProductUrl" class="form-label fw-bold">رابط صفحة المنتج</label>
                 <input id="sheinProductUrl" type="url" name="product_url"
@@ -98,6 +99,7 @@
                     dir="ltr" required>
                 @error('product_url')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
                 <button type="submit" class="btn btn-outline-primary" @disabled(!$connection['connected'])>مقارنة سعر www بحسابك وبوضع الزائر</button>
+                <div class="small text-secondary">لمنع تكرار طلبات SHEIN، يُسمح بمحاولتين فقط كل 5 دقائق. لا تضغطي أكثر من مرة أثناء الانتظار.</div>
             </form>
             @if(session()->has('shein_price_probe_result'))
                 @php($probe = session('shein_price_probe_result'))
