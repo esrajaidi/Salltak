@@ -10,7 +10,12 @@ const view = fs.readFileSync('resources/views/admin/shein-session/index.blade.ph
 test('price probe stays admin-only, non-mutating and uses the vault', () => {
   assert.match(routes, /middleware\('admin'\)->group/);
   assert.match(routes, /shein-session\/price-probe/);
-  assert.match(routes, /throttle:2,5/);
+  assert.match(routes, /throttle:shein-account-price-probe/);
+  const provider = fs.readFileSync('app/Providers/AppServiceProvider.php', 'utf8');
+  assert.match(provider, /RateLimiter::for\('shein-account-price-probe'/);
+  assert.match(provider, /Limit::perMinutes\(5, 2\)/);
+  assert.match(provider, /->withErrors\(/);
+  assert.match(provider, /->withInput\(/);
   assert.match(controller, /function probeProductPrice\(/);
   assert.match(controller, /\$this->vault->read\(true\)/);
   assert.match(controller, /->input\(\$payload\)/);
