@@ -62,6 +62,11 @@ jobs:
           php -l config/services.php
           node --test tests/static/shein-cart-time-budget.test.mjs
 
+      - name: Local headed purchaser account price visibility checks
+        run: |
+          node --check scripts/shein-local-product-check.mjs
+          node --test tests/static/shein-local-headed-product-check.test.mjs
+
       - name: SHEIN owner-price provenance safeguards
         run: |
           php -l app/Services/CartImport/Adapters/SheinShareAdapter.php
