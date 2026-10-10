@@ -134,6 +134,21 @@ async function observe(context, productUrl, timeoutMs) {
           }
         }
 
+        // Public page metadata can appear even while the personalized
+        // product-price widget is still hydrating. It is never verified as an
+        // account-specific price, and only used if USD is explicit.
+        if (!candidates.length) {
+          const priceMeta = document.querySelector(
+            'meta[property="product:price:amount"], meta[itemprop="price"]'
+          );
+          const currencyMeta = document.querySelector(
+            'meta[property="product:price:currency"], meta[itemprop="priceCurrency"]'
+          );
+          if (priceMeta && String(currencyMeta?.content || '').toUpperCase() === 'USD') {
+            add(priceMeta.content, 'product_price_metadata', -1);
+          }
+        }
+
         // SHEIN sometimes emits a product offer as structured data before
         // rendering the DOM. Treat it as *weak evidence*, not an account price.
         const fromLd = raw => {
