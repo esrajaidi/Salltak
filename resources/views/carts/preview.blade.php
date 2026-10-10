@@ -14,6 +14,10 @@
     };
     $isSheinShare = !empty($result->meta['group_id']);
     $uaePriceVerified = (bool) ($result->meta['pricing_country_verified'] ?? false);
+    // Region-specific price evidence does NOT authenticate the purchaser's
+    // account or validate its SKU-level discounted purchase price.
+    $accountPriceVerified = (bool) ($result->meta['account_price_verified'] ?? false);
+    $sheinPriceNeedsReview = $isSheinShare && !$accountPriceVerified;
     $countryLabel = match(strtoupper((string)($result->meta['local_country'] ?? ''))) {
         'AE' => 'الإمارات',
         'SA' => 'السعودية',
@@ -33,10 +37,10 @@
         </div>
 
         <div class="surface-card-elevated reveal is-visible p-3 p-md-4">
-            <div class="alert {{ $result->status === 'success' ? 'alert-success' : 'alert-warning' }} border-0 import-alert mb-3">
-                <div class="import-alert-icon"><x-icon :name="$result->status === 'success' ? 'check' : 'warning'" size="22" /></div>
+            <div class="alert {{ $result->status === 'success' && !$sheinPriceNeedsReview ? 'alert-success' : 'alert-warning' }} border-0 import-alert mb-3">
+                <div class="import-alert-icon"><x-icon :name="$result->status === 'success' && !$sheinPriceNeedsReview ? 'check' : 'warning'" size="22" /></div>
                 <div class="flex-grow-1">
-                    <div class="fw-bold">{{ $result->status === 'success' ? 'تم جلب السلة' : 'تحتاج مراجعة' }}</div>
+                    <div class="fw-bold">{{ $sheinPriceNeedsReview ? 'تم جلب المنتجات — الأسعار تحتاج تأكيد من حساب الشراء' : ($result->status === 'success' ? 'تم جلب السلة' : 'تحتاج مراجعة') }}</div>
                     <div class="small mt-1">{{ $result->message }}</div>
                     @if($result->status === 'success')
                         <div class="small mt-1">تم العثور على <strong>{{ count($previewItems) }}</strong> منتج/منتجات من السلة.</div>
@@ -52,9 +56,12 @@
                         @if($countryLabel)<div class="small text-secondary mt-1">بلد الرابط الأصلي: {{ $countryLabel }}</div>@endif
                         <div class="small fw-semibold mt-1">بلد التسعير المطلوب: الإمارات (AE)</div>
                         @if($uaePriceVerified)
-                            <div class="small text-success mt-1">تم التحقق من أن الاستجابة تعرض أسعار الإمارات (AED). تظهر في سلتك بالدولار من الاستجابة نفسها، قبل كوبونات الحساب.</div>
+                            <div class="small text-secondary mt-1">استجابة مشاركة السلة تشير إلى أسعار الإمارات (AED)، لكن هذا لا يعني تطابق السعر مع حساب الشراء بعد Login.</div>
                         @else
-                            <div class="small text-warning-emphasis mt-1">لم يتم تأكيد أن الأسعار إماراتية. راجع السعر من حساب الشراء قبل تأكيد الطلب.</div>
+                            <div class="small text-warning-emphasis mt-1">لم يتم تأكيد منطقة السعر أو تطابقه مع حساب الشراء.</div>
+                        @endif
+                        @if($sheinPriceNeedsReview)
+                            <div class="small text-warning-emphasis fw-bold mt-2">سعر SHEIN الظاهر في حساب الشراء على www.shein.com هو المرجع وقت المراجعة. الأسعار المعروضة هنا تقديرية وغير مؤكدة.</div>
                         @endif
                     </div>
                     <form method="POST" action="{{ route('carts.analyze') }}" class="m-0">
@@ -88,9 +95,9 @@
                     <div class="cart-toolbar d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 mb-3">
                         <div>
                             <h2 class="h5 fw-bold mb-1">منتجات السلة</h2>
-                            <div class="small text-secondary">سعر مستورد من المتجر — قد يختلف عن سعر حساب الشراء بعد الخصومات.</div>
+                            <div class="small text-secondary">{{ $sheinPriceNeedsReview ? 'منتجات السلة مستوردة، لكن سعر كل قطعة تقديري وليس سعر حساب الشراء المؤكد بعد Login.' : 'السعر المستورد قد يختلف عن سعر الشراء النهائي.' }}</div>
                         </div>
-                        <div class="price-lock-pill"><x-icon name="check" size="16" /> الأسعار محمية</div>
+                        <div class="price-lock-pill">@if($sheinPriceNeedsReview)<x-icon name="warning" size="16" /> الأسعار تقديرية وتحتاج مراجعة @else<x-icon name="check" size="16" /> الأسعار محمية من التعديل @endif</div>
                     </div>
 
                     <div id="items" class="cart-preview-items">
@@ -133,7 +140,7 @@
                                                 <div class="price-box">
                                                     <span class="price-label">سعر القطعة</span>
                                                     <div class="price-value original-price">{{ number_format((float)($item['unit_price_original'] ?? 0), 2) }} {{ $currencyLabel }}</div>
-                                                    <div class="price-lock-note"><x-icon name="check" size="14" /> السعر المستورد قبل كوبونات الحساب</div>
+                                                    <div class="price-lock-note">@if($sheinPriceNeedsReview)<x-icon name="warning" size="14" /> سعر من مشاركة السلة، غير مؤكد من حساب الشراء @else<x-icon name="check" size="14" /> السعر المستورد من المصدر @endif</div>
                                                 </div>
                                                 <div class="price-box lyd">
                                                     <span class="price-label">بالدينار الليبي</span>
@@ -176,7 +183,7 @@
 
                     <div class="d-flex flex-column-reverse flex-sm-row justify-content-end gap-2 mt-4">
                         <a class="btn btn-ghost" href="{{ route('carts.create') }}">إلغاء</a>
-                        <button class="btn btn-primary px-4 icon-text-btn" type="submit"><x-icon name="check" size="18" /> حفظ السلة</button>
+                        <button class="btn btn-primary px-4 icon-text-btn" type="submit"><x-icon name="check" size="18" /> {{ $sheinPriceNeedsReview ? 'حفظ السلة للمراجعة' : 'حفظ السلة' }}</button>
                     </div>
                 </form>
             @endif
