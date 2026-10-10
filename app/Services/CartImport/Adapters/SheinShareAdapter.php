@@ -175,6 +175,14 @@ class SheinShareAdapter implements CartSourceAdapter
             );
         }
 
+        if ($browserStatus === 'timeout') {
+            return ImportResult::needsReview(
+                'انتهت مهلة جلب سلة SHEIN قبل اكتمال القراءة. السلة الأصلية لم تُحذف؛ جرّبي الرابط لاحقًا أو تحققي من اتصال المتصفح.',
+                currency: $fallbackCurrency,
+                meta: $baseMeta
+            );
+        }
+
         if ($httpStatus === 429) {
             return ImportResult::needsReview(
                 'SHEIN منع الطلب المباشر، وتمت محاولة فتح السلة بمتصفح Chromium أيضًا لكن المنتجات لم تُقرأ. جرّب وضع المتصفح المرئي في Mac إذا ظهر تحقق أمني.',
