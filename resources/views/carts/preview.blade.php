@@ -12,7 +12,14 @@
         'SAR' => 'ريال سعودي',
         default => strtoupper($currency),
     };
-    $isSheinShare = !empty($result->meta['group_id']);
+    // onelink.shein.com often resolves without a group_id in the returned
+    // metadata. Identify SHEIN from the *trusted original source URL*, too,
+    // so guest/shared-cart price estimates cannot appear account-verified.
+    $sourceHost = strtolower((string) parse_url((string) ($sourceUrl ?? ''), PHP_URL_HOST));
+    $isSheinSource = $sourceHost === 'shein.com' || str_ends_with($sourceHost, '.shein.com');
+    $isSheinShare = $isSheinSource
+        || !empty($result->meta['group_id'])
+        || ($result->meta['price_source'] ?? null) === 'shein_shared_cart_estimate';
     $uaePriceVerified = (bool) ($result->meta['pricing_country_verified'] ?? false);
     // Region-specific price evidence does NOT authenticate the purchaser's
     // account or validate its SKU-level discounted purchase price.
@@ -97,7 +104,7 @@
                             <h2 class="h5 fw-bold mb-1">منتجات السلة</h2>
                             <div class="small text-secondary">{{ $sheinPriceNeedsReview ? 'منتجات السلة مستوردة، لكن سعر كل قطعة تقديري وليس سعر حساب الشراء المؤكد بعد Login.' : 'السعر المستورد قد يختلف عن سعر الشراء النهائي.' }}</div>
                         </div>
-                        <div class="price-lock-pill">@if($sheinPriceNeedsReview)<x-icon name="warning" size="16" /> الأسعار تقديرية وتحتاج مراجعة @else<x-icon name="check" size="16" /> الأسعار محمية من التعديل @endif</div>
+                        <div class="price-lock-pill">@if($sheinPriceNeedsReview)<x-icon name="warning" size="16" /> أسعار SHEIN تقديرية — لم تُؤكّد من حساب الشراء @else<x-icon name="check" size="16" /> الأسعار محمية من التعديل @endif</div>
                     </div>
 
                     <div id="items" class="cart-preview-items">
@@ -140,7 +147,7 @@
                                                 <div class="price-box">
                                                     <span class="price-label">سعر القطعة</span>
                                                     <div class="price-value original-price">{{ number_format((float)($item['unit_price_original'] ?? 0), 2) }} {{ $currencyLabel }}</div>
-                                                    <div class="price-lock-note">@if($sheinPriceNeedsReview)<x-icon name="warning" size="14" /> سعر من مشاركة السلة، غير مؤكد من حساب الشراء @else<x-icon name="check" size="14" /> السعر المستورد من المصدر @endif</div>
+                                                    <div class="price-lock-note">@if($sheinPriceNeedsReview)<x-icon name="warning" size="14" /> سعر تقديري من SHEIN، مش سعر حسابك بعد Login @else<x-icon name="check" size="14" /> السعر المستورد من المصدر @endif</div>
                                                 </div>
                                                 <div class="price-box lyd">
                                                     <span class="price-label">بالدينار الليبي</span>
