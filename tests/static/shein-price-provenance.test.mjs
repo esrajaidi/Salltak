@@ -18,6 +18,15 @@ test('shared cart price cannot be labeled as authenticated purchasing-account pr
 test('customer preview distinguishes AED storefront evidence from logged-in account price', () => {
   assert.match(view, /\$accountPriceVerified = \(bool\)/);
   assert.match(view, /\$sheinPriceNeedsReview = \$isSheinShare && !\$accountPriceVerified/);
+  // Some onelink BFF responses omit the numeric group ID. They must still
+  // receive a SHEIN account-price warning based on the original source host.
+  assert.match(view, /\$sourceHost = strtolower\(/);
+  assert.match(view, /\$sourceHost === 'shein.com'/);
+  assert.match(view, /str_ends_with\(\$sourceHost, '\.shein\.com'\)/);
+  assert.match(view, /\$isSheinShare = \$isSheinSource/);
+  assert.match(view, /\$result->meta\['price_source'\]/);
+  assert.match(view, /أسعار SHEIN تقديرية/);
+  assert.match(view, /مش سعر حسابك بعد Login/);
   assert.match(view, /لكن هذا لا يعني تطابق السعر مع حساب الشراء بعد Login/);
   assert.match(view, /غير مؤكد من حساب الشراء/);
   assert.match(view, /حفظ السلة للمراجعة/);
