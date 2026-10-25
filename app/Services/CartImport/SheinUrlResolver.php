@@ -87,13 +87,14 @@ class SheinUrlResolver
             return $resolved;
         }
 
-        // Preserve the onelink share identity if the redirect omitted it.
-        // Do not invent a group ID or replace an identity already returned by SHEIN.
+        // Preserve the original onelink share identity. SHEIN may redirect to
+        // a different storefront, but that must not replace the pasted token.
+        // Never invent a group ID; keep the group provided by the redirect.
         parse_str((string) ($parts['query'] ?? ''), $query);
         parse_str((string) (parse_url($original, PHP_URL_QUERY) ?: ''), $shortQuery);
         foreach (['shc', 'url_from'] as $key) {
             $value = $shortQuery[$key] ?? null;
-            if (! isset($query[$key]) && is_string($value)
+            if (is_string($value)
                 && preg_match('/^[A-Za-z0-9_-]{1,128}$/D', $value)) {
                 $query[$key] = $value;
             }
