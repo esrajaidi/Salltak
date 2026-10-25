@@ -21,12 +21,13 @@ test('malformed real onelink share URL is repaired without replacing its cart id
   assert.match(resolver, /shc=\[A-Za-z0-9_-\]\+/);
   assert.match(resolver, /url_from/);
   assert.match(resolver, /foreach \(\['shc', 'url_from'\] as \$key\)/);
-  assert.match(resolver, /!\s*isset\(\$query\[\$key\]\)/);
+  assert.match(resolver, /\$query\[\$key\] = \$value/);
   assert.match(tests, /64kcvbmdsiau/);
   assert.match(tests, /www\.shein\.com/);
   assert.match(tests, /group_id/);
   assert.match(tests, /url_from/);
   assert.match(tests, /assertSentCount\(1\)/);
+  assert.match(tests, /test_original_onelink_share_identity_takes_precedence_over_redirect_token/);
 });
 
 test('unsafe third party redirects remain rejected', () => {
