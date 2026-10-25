@@ -46,6 +46,12 @@ jobs:
           php -l tests/Unit/SheinUrlResolverTest.php
           node --test tests/static/shein-onelink-www-redirect.test.mjs
 
+      - name: SHEIN www BFF after mobile redirect guards
+        run: |
+          node --check scripts/shein-shared-page-import.mjs
+          node --test tests/static/shein-cross-host-bff-request.test.mjs
+          php -l app/Services/CartImport/Browser/SheinImportDiagnostics.php
+
       - name: SHEIN www domain consistency
         run: |
           php -l app/Services/CartImport/SheinProductUrl.php
