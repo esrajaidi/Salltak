@@ -236,8 +236,16 @@ if (!allowed(targetUrl)) {
     context = await chromium.launchPersistentContext(profileDir, {
       headless: cfg.headless !== false,
       locale: String(cfg.locale || 'en-AE'),
-      viewport: { width: Number(cfg.viewport?.width || 430), height: Number(cfg.viewport?.height || 932) },
-      userAgent: String(cfg.userAgent || 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 Version/18.7 Mobile/15E148 Safari/604.1'),
+      // www is a desktop storefront. The old default iPhone user-agent
+      // encouraged SHEIN to redirect the primary www attempt to m.shein.com.
+      // Keep the iPhone profile only for the explicitly marked mobile fallback.
+      viewport: {
+        width: Number(cfg.viewport?.width || (shareHost === 'www.shein.com' ? 1320 : 430)),
+        height: Number(cfg.viewport?.height || (shareHost === 'www.shein.com' ? 900 : 932)),
+      },
+      userAgent: String(cfg.userAgent || (shareHost === 'www.shein.com'
+        ? 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'
+        : 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 Version/18.7 Mobile/15E148 Safari/604.1')),
       args: ['--disable-dev-shm-usage'],
     });
 
@@ -376,40 +384,64 @@ if (!allowed(targetUrl)) {
     const bodyText = await page.locator('body').innerText().catch(() => '');
     const finalUrl = page.url();
 
-    // The share page does not always issue its own BFF request. Retry the
-    // exact shared-cart POST in the SAME browser session, with real cookies.
-    // No unrelated listing or recommendation endpoints are eligible.
+    // The landing page can redirect www -> m, while the requested shared
+    // products still belong to www.shein.com. Calling fetch(www) from the
+    // redirected m.shein.com *page* crosses origins and may fail on CORS.
+    // Playwright's context.request shares the Chromium context's cookies, but
+    // isn't blocked by a cross-origin browser page's CORS restrictions.
+    // This does NOT authenticate the account or bypass SHEIN access controls.
     const targetShare = shareContextFor(targetUrl, finalUrl);
-    if (!bffAePriceVerified && targetShare.groupId && sheinUrl(finalUrl)) {
+    const directBffAttempted = !bffAePriceVerified && Boolean(targetShare.groupId) && sheinUrl(finalUrl);
+    let directBffHttpStatus = 0;
+    let directBffOutcome = targetShare.groupId ? 'not_attempted' : 'missing_group_id';
+    if (directBffAttempted) {
       try {
         const request = uaeShareRequest(finalUrl, targetShare.groupId, shareHost);
-        if (!request) throw new Error('Missing UAE share context');
+        if (!request) throw new Error('invalid_share_context');
         const { endpoint, body } = request;
-        const result = await page.evaluate(async ({ endpoint, body }) => {
-          const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 10_000);
-          try {
-            const response = await fetch(endpoint, {
-              method: 'POST', credentials: 'include', signal: controller.signal,
-              headers: { 'accept': 'application/json, text/plain, */*',
-                'content-type': 'application/json',
-                'x-requested-with': 'XMLHttpRequest', appcurrency: 'AED' },
-              body: JSON.stringify(body),
-            });
-            const text = await response.text();
-            return { status: response.status, text: text.length <= 2_500_000 ? text : '', responseUrl: response.url };
-          } catch { return { status: 0, text: '' }; }
-          finally { clearTimeout(timeout); }
-        }, { endpoint, body }).catch(() => ({ status: 0, text: '' }));
-        if (result.text) {
-          const payload = JSON.parse(result.text);
-          captureBoundBff(parseSheinShareBff(payload, {
-            url: endpoint, method: 'POST', requestBody: body,
-            expectedGroupId: targetShare.groupId,
-            expectedCountry: PRICING_COUNTRY,
-          }), result.responseUrl || endpoint);
+        // Never forward credentials to a third party or use recommendation
+        // APIs. This endpoint is selected only by the strict www/m host helper.
+        const response = await context.request.post(endpoint, {
+          data: body,
+          headers: {
+            'accept': 'application/json, text/plain, */*',
+            'content-type': 'application/json',
+            'x-requested-with': 'XMLHttpRequest',
+            appcurrency: 'AED',
+            'origin': 'https://' + shareHost,
+            'referer': 'https://' + shareHost + '/ar/cart/share/landing',
+          },
+          timeout: Math.min(10_000, timeoutMs),
+          maxRedirects: 0,
+          failOnStatusCode: false,
+        });
+        directBffHttpStatus = response.status();
+        directBffOutcome = 'http_error';
+        if (directBffHttpStatus >= 200 && directBffHttpStatus < 300) {
+          const responseText = await response.text();
+          if (responseText.length > MAX_RESPONSE_BYTES) {
+            directBffOutcome = 'oversized_response';
+          } else {
+            let payload;
+            try { payload = JSON.parse(responseText); } catch {}
+            if (!payload || typeof payload !== 'object') {
+              directBffOutcome = 'non_json_response';
+            } else {
+              const parsed = parseSheinShareBff(payload, {
+                url: response.url(), method: 'POST', requestBody: body,
+                expectedGroupId: targetShare.groupId,
+                expectedCountry: PRICING_COUNTRY,
+              });
+              captureBoundBff(parsed, response.url());
+              directBffOutcome = parsed.bound ? 'bound_share_response' : 'unbound_share_response';
+            }
+          }
         }
-      } catch {}
+      } catch {
+        // Only report a bounded diagnostic enum; never leak network errors,
+        // URLs, share tokens, full response bodies or cookie material.
+        directBffOutcome = 'request_failed';
+      }
       await Promise.allSettled(responseTasks);
     }
 
@@ -653,6 +685,11 @@ if (!allowed(targetUrl)) {
     // Keep only aggregate classifications. No full URL, query string,
     // response body, item name, or share token is returned in diagnostics.
     const evidenceMeta = {
+      share_group_id_present: Boolean(targetShare.groupId),
+      share_token_present: Boolean(targetShare.shc),
+      direct_bff_attempted: directBffAttempted,
+      direct_bff_http_status: directBffHttpStatus,
+      direct_bff_outcome: directBffOutcome,
       share_response_seen: shareEvidence.shareResponseSeen,
       share_bound_candidate_count: shareEvidence.shareBoundCandidateCount,
       response_class_counts: shareEvidence.responseClassCounts,
@@ -784,7 +821,11 @@ if (!allowed(targetUrl)) {
         out({
           ok:true,
           status:'shared_page_unreadable',
-          message:'رابط مشاركة SHEIN صالح وفتح بنجاح، لكن SHEIN لم يعرّض عناصر القائمة للمتصفح بشكل يمكن قراءته في هذه المحاولة. أعد المحاولة مرة أخرى.',
+          message:!targetShare.groupId
+            ? 'تعذر استخراج رقم مجموعة SHEIN من رابط المشاركة. تأكدي من صلاحية الرابط وجرّبي نسخ رابط السلة مجددًا.'
+            : [403, 429].includes(directBffHttpStatus)
+              ? 'SHEIN قيّدت طلب بيانات السلة في هذه المحاولة. لا يمكن عرض منتجات مؤكدة حاليًا؛ جرّبي لاحقًا.'
+              : 'فتحت صفحة مشاركة SHEIN، لكن بيانات المنتجات لم تصل من خدمة السلة. المنتجات والأسعار غير متاحة للتأكيد حاليًا.',
           final_url:finalUrl,
           items:[],
           payloads:[],

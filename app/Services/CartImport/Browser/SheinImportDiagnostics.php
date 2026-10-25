@@ -11,8 +11,8 @@ final class SheinImportDiagnostics
     public static function attempt(array $result, string $stage, string $traceId, int $durationMs): array
     {
         $meta = is_array($result['meta'] ?? null) ? $result['meta'] : [];
-        $allowedStages = ['shared_mobile', 'shared_desktop', 'shared_enrichment', 'legacy_primary', 'legacy_retry'];
-        $allowedStatuses = ['loaded', 'missing_usd_prices', 'shared_page_unreadable', 'ae_price_unverified', 'not_shared_page', 'challenge', 'failed', 'unavailable', 'disabled', 'invalid_url', 'timeout', 'empty'];
+        $allowedStages = ['shared_www', 'shared_mobile', 'shared_mobile_fallback', 'shared_guest_fallback', 'shared_desktop', 'shared_enrichment', 'legacy_primary', 'legacy_retry'];
+        $allowedStatuses = ['loaded', 'missing_usd_prices', 'shared_page_unreadable', 'ae_price_unverified', 'mobile_share_price_needs_review', 'guest_price_needs_review', 'account_price_unverified', 'not_shared_page', 'challenge', 'failed', 'unavailable', 'disabled', 'invalid_url', 'timeout', 'empty'];
         $stage = in_array($stage, $allowedStages, true) ? $stage : 'other';
         $status = (string) ($result['status'] ?? '');
         $status = in_array($status, $allowedStatuses, true) ? $status : 'other';
@@ -62,6 +62,17 @@ final class SheinImportDiagnostics
             'missing_usd_price_count' => $count($meta['missing_usd_price_count'] ?? 0),
             'network_usd_price_count' => $count($meta['network_usd_price_count'] ?? 0),
             'inspected_response_count' => $count($meta['inspected_response_count'] ?? 0),
+            // Allowlisted share/BFF evidence only. No group ID, token, URL or
+            // remote response body is ever included in Laravel logs.
+            'share_group_id_present' => ($meta['share_group_id_present'] ?? false) === true,
+            'share_token_present' => ($meta['share_token_present'] ?? false) === true,
+            'direct_bff_attempted' => ($meta['direct_bff_attempted'] ?? false) === true,
+            'direct_bff_http_status' => $count($meta['direct_bff_http_status'] ?? 0),
+            'direct_bff_outcome' => in_array(($meta['direct_bff_outcome'] ?? ''), [
+                'not_attempted', 'missing_group_id', 'bound_share_response',
+                'unbound_share_response', 'oversized_response',
+                'non_json_response', 'http_error', 'request_failed',
+            ], true) ? $meta['direct_bff_outcome'] : 'other',
             'share_response_seen' => ($meta['share_response_seen'] ?? false) === true,
             'share_bound_candidate_count' => $count($meta['share_bound_candidate_count'] ?? 0),
             'bound_bff_response_count' => $count($meta['bound_bff_response_count'] ?? 0),
