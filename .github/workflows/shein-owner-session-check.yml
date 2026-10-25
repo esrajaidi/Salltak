@@ -40,6 +40,12 @@ jobs:
           php -l tests/static/shein-owner-guest-fallback-check.php
           php tests/static/shein-owner-guest-fallback-check.php
 
+      - name: SHEIN onelink regional redirect normalization
+        run: |
+          php -l app/Services/CartImport/SheinUrlResolver.php
+          php -l tests/Unit/SheinUrlResolverTest.php
+          node --test tests/static/shein-onelink-www-redirect.test.mjs
+
       - name: SHEIN www domain consistency
         run: |
           php -l app/Services/CartImport/SheinProductUrl.php
