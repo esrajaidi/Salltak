@@ -407,7 +407,7 @@ if (!allowed(targetUrl)) {
             'accept': 'application/json, text/plain, */*',
             'content-type': 'application/json',
             'x-requested-with': 'XMLHttpRequest',
-            'appcurrency': 'AED',
+            appcurrency: 'AED',
             'origin': 'https://' + shareHost,
             'referer': 'https://' + shareHost + '/ar/cart/share/landing',
           },
