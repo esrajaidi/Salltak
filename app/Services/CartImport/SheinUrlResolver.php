@@ -27,12 +27,14 @@ class SheinUrlResolver
             $url,
         ) ?? $url;
 
+        $normalizedShortUrl = $current;
+
         for ($attempt = 0; $attempt < self::MAX_REDIRECTS; $attempt++) {
             try {
                 $response = Http::withHeaders([
                     'User-Agent' => 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Version/18.0 Mobile/15E148 Safari/604.1',
                     'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                    'Accept-Language' => 'ar,en-US;q=0.8,en;q=0.7',
+                    'Accept-Language' => 'en-AE,en;q=0.9',
                 ])
                     ->withoutRedirecting()
                     ->timeout((int) config('services.cart_import.timeout', 15))
@@ -44,7 +46,7 @@ class SheinUrlResolver
 
             $location = trim((string) $response->header('Location'));
             if ($location === '') {
-                return $this->shareLandingOnWww($current, $url);
+                return $this->shareLandingOnWww($current, $normalizedShortUrl);
             }
 
             $next = $this->absoluteUrl($location, $current);
@@ -55,7 +57,7 @@ class SheinUrlResolver
             $current = $next;
 
             if (! $this->isShortSheinLink($current)) {
-                return $current;
+                return $this->shareLandingOnWww($current, $normalizedShortUrl);
             }
         }
 
