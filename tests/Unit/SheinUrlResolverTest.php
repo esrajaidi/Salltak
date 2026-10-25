@@ -61,7 +61,7 @@ class SheinUrlResolverTest extends TestCase
         Http::assertSentCount(1);
     }
 
-    public function test_onelink_share_identity_does_not_override_existing_redirect_token(): void
+    public function test_original_onelink_share_identity_takes_precedence_over_redirect_token(): void
     {
         $short = 'https://onelink.shein.com/56/test?shc=2_Original';
         $landing = 'https://ar.shein.com/ar/cart/share/landing?group_id=851956795&shc=2_FromShein&local_country=AE';
@@ -71,7 +71,7 @@ class SheinUrlResolverTest extends TestCase
 
         $resolved = (new SheinUrlResolver(new StoreUrlClassifier()))->resolve($short);
         $this->assertSame(
-            str_replace('https://ar.shein.com', 'https://www.shein.com', $landing),
+            str_replace(['https://ar.shein.com', 'shc=2_FromShein'], ['https://www.shein.com', 'shc=2_Original'], $landing),
             $resolved,
         );
         Http::assertSentCount(1);
