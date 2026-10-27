@@ -46,7 +46,17 @@ class SheinUrlResolver
 
             $location = trim((string) $response->header('Location'));
             if ($location === '') {
-                return $this->shareLandingOnWww($current, $normalizedShortUrl);
+                // onelink often responds 200 with an HTML/JS app deeplink,
+                // not an HTTP 3xx redirect. The link's group_id can be
+                // embedded in shareInfo even when a desktop browser only
+                // sees SHEIN's homepage.
+                $fromPage = $response->successful()
+                    ? $this->shareLandingFromHtml(
+                        (string) $response->body(),
+                        $normalizedShortUrl,
+                    )
+                    : null;
+                return $fromPage ?? $this->shareLandingOnWww($current, $normalizedShortUrl);
             }
 
             $next = $this->absoluteUrl($location, $current);
@@ -62,6 +72,55 @@ class SheinUrlResolver
         }
 
         return $this->shareLandingOnWww($current, $url);
+    }
+
+    /**
+     * Resolve the cart identity only from HTML returned by the trusted
+     * onelink chain. Never fetch arbitrary URLs embedded in the document.
+     *
+     * A valid shortlink supplies shc but not group_id; SHEIN can deliver an
+     * HTML/JS app jump page containing the real numeric group ID without an
+     * HTTP Location header. A 200 response alone does not mean the cart
+     * contents have been retrieved.
+     */
+    private function shareLandingFromHtml(string $html, string $original): ?string
+    {
+        if ($html === '' || strlen($html) > 2_000_000
+            || ! preg_match('/(?:shareInfo|sharejump|cart\\/share|group_id|groupId)/i', $html)) {
+            return null;
+        }
+
+        parse_str((string) (parse_url($original, PHP_URL_QUERY) ?: ''), $shortQuery);
+        $shc = $shortQuery['shc'] ?? null;
+        if (! is_string($shc) || ! preg_match('/^2_[A-Za-z0-9_-]{4,120}$/D', $shc)) {
+            return null;
+        }
+
+        // Common JSON, JS and URL-encoded forms of group_id seen in SHEIN
+        // shareInfo/deeplink pages. Use only a 6–20 digit ID, never infer one.
+        $patterns = [
+            '~(?:group_id|groupId)[\x22\x27]?\s*:\s*[\x22\x27]?(\d{6,20})(?!\d)~i',
+            '/(?:group_id|groupId)(?:=|%3[dD])(\\d{6,20})(?!\\d)/i',
+        ];
+        $groupId = null;
+        foreach ($patterns as $pattern) {
+            if (preg_match($pattern, $html, $matches)) {
+                $groupId = $matches[1];
+                break;
+            }
+        }
+        if ($groupId === null) {
+            return null;
+        }
+
+        $query = http_build_query([
+            'group_id' => $groupId,
+            'shc' => $shc,
+            'local_country' => 'AE',
+            'cart_share' => '1',
+        ], '', '&', PHP_QUERY_RFC3986);
+
+        return 'https://www.shein.com/ar/cart/share/landing?'.$query;
     }
 
     /**

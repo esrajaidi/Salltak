@@ -77,6 +77,34 @@ class SheinUrlResolverTest extends TestCase
         Http::assertSentCount(1);
     }
 
+    public function test_onelink_200_html_shareinfo_resolves_cart_without_http_redirect(): void
+    {
+        $short = 'https://onelink.shein.com/58/6663yrqirv65?shc=2_RNBOXsQCBJ4';
+        $body = '<script>var shareInfo={"group_id":"876543210","shc":"2_RNBOXsQCBJ4"}</script>';
+        Http::fake([$short => Http::response($body, 200, ['Content-Type' => 'text/html'])]);
+
+        $resolved = (new SheinUrlResolver(new StoreUrlClassifier()))->resolve($short);
+        $parts = parse_url($resolved);
+        parse_str((string) ($parts['query'] ?? ''), $query);
+
+        $this->assertSame('www.shein.com', $parts['host']);
+        $this->assertSame('/ar/cart/share/landing', $parts['path']);
+        $this->assertSame('876543210', $query['group_id']);
+        $this->assertSame('2_RNBOXsQCBJ4', $query['shc']);
+        $this->assertSame('AE', $query['local_country']);
+        Http::assertSentCount(1);
+    }
+
+    public function test_onelink_without_group_id_is_not_falsely_resolved(): void
+    {
+        $short = 'https://onelink.shein.com/58/6663yrqirv65?shc=2_RNBOXsQCBJ4';
+        Http::fake([$short => Http::response('<html>SHEIN homepage</html>', 200)]);
+
+        $resolved = (new SheinUrlResolver(new StoreUrlClassifier()))->resolve($short);
+        $this->assertSame($short, $resolved);
+        Http::assertSentCount(1);
+    }
+
     public function test_onelink_rejects_redirects_outside_shein(): void
     {
         $short = 'https://onelink.shein.com/52/example?shc=abc';
