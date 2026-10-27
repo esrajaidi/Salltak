@@ -50,10 +50,12 @@ class SheinUrlResolver
                 // not an HTTP 3xx redirect. The link's group_id can be
                 // embedded in shareInfo even when a desktop browser only
                 // sees SHEIN's homepage.
-                $fromPage = $this->shareLandingFromHtml(
-                    (string) $response->body(),
-                    $normalizedShortUrl,
-                );
+                $fromPage = $response->successful()
+                    ? $this->shareLandingFromHtml(
+                        (string) $response->body(),
+                        $normalizedShortUrl,
+                    )
+                    : null;
                 return $fromPage ?? $this->shareLandingOnWww($current, $normalizedShortUrl);
             }
 
@@ -97,7 +99,7 @@ class SheinUrlResolver
         // Common JSON, JS and URL-encoded forms of group_id seen in SHEIN
         // shareInfo/deeplink pages. Use only a 6–20 digit ID, never infer one.
         $patterns = [
-            '/[\\\\"\\\x27]?(?:group_id|groupId)[\\\\"\\\x27]?\\s*:\\s*[\\\\"\\\x27]?(\\d{6,20})(?!\\d)/i',
+            '~(?:group_id|groupId)[\x22\x27]?\s*:\s*[\x22\x27]?(\d{6,20})(?!\d)~i',
             '/(?:group_id|groupId)(?:=|%3[dD])(\\d{6,20})(?!\\d)/i',
         ];
         $groupId = null;
