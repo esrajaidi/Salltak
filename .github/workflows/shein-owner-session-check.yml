@@ -47,6 +47,13 @@ jobs:
           php -l tests/static/shein-onelink-html-resolve-check.php
           php tests/static/shein-onelink-html-resolve-check.php
 
+      - name: SHEIN appjump hidden deeplink resolution and trusted redirect checks
+        run: |
+          php -l app/Services/CartImport/SheinUrlResolver.php
+          php -l tests/Unit/SheinUrlResolverTest.php
+          php -l tests/static/shein-onelink-appjump-resolve-check.php
+          php tests/static/shein-onelink-appjump-resolve-check.php
+
       - name: SHEIN onelink regional redirect normalization
         run: |
           php -l app/Services/CartImport/SheinUrlResolver.php
