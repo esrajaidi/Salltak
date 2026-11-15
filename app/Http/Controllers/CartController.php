@@ -116,10 +116,6 @@ class CartController extends Controller
             'items' => ['required', 'array', 'min:1', 'max:100'],
             'items.*.key' => ['required', 'string', 'max:64'],
             'items.*.quantity' => ['required', 'integer', 'min:1', 'max:999'],
-            // These are customer-supplied comparison prices from the SHEIN
-            // app after coupon, NEVER authoritative payable/imported prices.
-            'items.*.checkout_unit_price' => ['nullable', 'regex:/^(?:0|[1-9]\d{0,5})(?:\.\d{1,2})?$/D'],
-            'checkout_total_from_app' => ['nullable', 'regex:/^(?:0|[1-9]\d{0,5})(?:\.\d{1,2})?$/D'],
         ]);
 
         $sessionKey = 'cart_import_preview.'.$data['preview_token'];
@@ -133,24 +129,9 @@ class CartController extends Controller
                 ->withErrors(['source_url' => 'انتهت جلسة مراجعة السلة. أعد جلب السلة من الرابط.']);
         }
 
-        $sourceHost = strtolower((string) parse_url((string) ($snapshot['source_url'] ?? ''), PHP_URL_HOST));
-        $isSheinSource = $sourceHost === 'shein.com' || str_ends_with($sourceHost, '.shein.com');
-        if (! $isSheinSource && (
-            $request->filled('checkout_total_from_app')
-            || collect($data['items'])->contains(fn (array $item) =>
-                isset($item['checkout_unit_price']) && $item['checkout_unit_price'] !== ''
-            )
-        )) {
-            return back()->withErrors([
-                'checkout_total_from_app' => 'مقارنة سعر التطبيق بعد الكوبون متاحة لسلات SHEIN فقط.',
-            ])->withInput();
-        }
-
         $snapshotItems = collect($snapshot['items'] ?? [])->keyBy('_key');
         $selectedItems = [];
         $seenKeys = [];
-        $checkoutQuoteTotal = 0;
-        $checkoutEditedItems = 0;
 
         foreach ($data['items'] as $submitted) {
             $key = (string) $submitted['key'];
@@ -161,17 +142,6 @@ class CartController extends Controller
             $seenKeys[$key] = true;
             $item = $snapshotItems->get($key);
             $item['quantity'] = (int) $submitted['quantity'];
-            // Keep imported price immutable; save the customer's after-coupon
-            // mobile price as a separate, unverified comparison field.
-            $requestedPrice = $submitted['checkout_unit_price'] ?? null;
-            if ($isSheinSource && $requestedPrice !== null && $requestedPrice !== '') {
-                $item['phone_checkout_unit_price'] = round((float) $requestedPrice, 2);
-                $checkoutEditedItems++;
-            }
-            $checkoutQuoteTotal += $this->money->lineTotal(
-                (float) ($item['phone_checkout_unit_price'] ?? $item['unit_price_original']),
-                $item['quantity']
-            );
             $selectedItems[] = $item;
         }
 
@@ -181,14 +151,7 @@ class CartController extends Controller
             return back()->withErrors(['items' => 'لا يوجد سعر صرف مفعّل للعملة المطلوبة. أعد جلب السلة بعد ضبط سعر الصرف.']);
         }
 
-        $phoneCheckoutTotal = $isSheinSource && isset($data['checkout_total_from_app'])
-            ? round((float) $data['checkout_total_from_app'], 2) : null;
-        $hasPhoneComparison = $isSheinSource && ($checkoutEditedItems > 0 || $phoneCheckoutTotal !== null);
-
-        $cart = DB::transaction(function () use (
-            $request, $snapshot, $selectedItems, $currency, $rate,
-            $hasPhoneComparison, $phoneCheckoutTotal, $checkoutQuoteTotal, $checkoutEditedItems
-        ) {
+        $cart = DB::transaction(function () use ($request, $snapshot, $selectedItems, $currency, $rate) {
             $subtotal = 0;
             foreach ($selectedItems as $item) {
                 $subtotal += $this->money->lineTotal((float) $item['unit_price_original'], (int) $item['quantity']);
@@ -206,15 +169,6 @@ class CartController extends Controller
                 'status' => 'saved',
                 'import_status' => $snapshot['import_status'] ?? 'needs_review',
                 'import_message' => $snapshot['import_message'] ?? null,
-                'import_meta' => $hasPhoneComparison ? [
-                    'phone_checkout_source' => 'customer_manually_entered',
-                    'phone_checkout_total' => $phoneCheckoutTotal,
-                    'phone_checkout_comparison_total' => round($checkoutQuoteTotal, 2),
-                    'phone_checkout_edited_items' => $checkoutEditedItems,
-                    'phone_checkout_item_count' => count($selectedItems),
-                    'phone_checkout_verified' => false,
-                    'requires_manager_price_review' => true,
-                ] : null,
             ]);
 
             foreach ($selectedItems as $item) {
@@ -231,11 +185,6 @@ class CartController extends Controller
                     'unit_price_original' => $item['unit_price_original'],
                     'line_total_original' => $line,
                     'currency' => $currency,
-                    'meta' => array_key_exists('phone_checkout_unit_price', $item) ? [
-                        'phone_checkout_unit_price' => $item['phone_checkout_unit_price'],
-                        'phone_checkout_price_source' => 'customer_manually_entered',
-                        'phone_checkout_verified' => false,
-                    ] : null,
                 ]);
             }
 

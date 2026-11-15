@@ -29,22 +29,6 @@ $issueStatuses=['unavailable','price_changed','option_issue','rejected'];
 
     <div class="row g-4 align-items-start">
         <div class="col-xxl-8">
-            @if(($order->cart?->import_meta['phone_checkout_source'] ?? null) === 'customer_manually_entered')
-                <div class="alert alert-info mb-3">
-                    <strong>مراجعة أسعار تطبيق SHEIN بعد الكوبون</strong>
-                    <div class="small mt-2">
-                        @if(($order->cart?->import_meta['phone_checkout_total'] ?? null) !== null)
-                            إجمالي التطبيق حسب العميل:
-                            <b>{{ number_format((float)$order->cart->import_meta['phone_checkout_total'], 2) }} {{ strtoupper((string)$order->cart->source_currency) }}</b> •
-                        @endif
-                        الإجمالي المقارن:
-                        <b>{{ number_format((float)($order->cart->import_meta['phone_checkout_comparison_total'] ?? 0), 2) }} {{ strtoupper((string)$order->cart->source_currency) }}</b>
-                        • مدخل يدويًا {{ (int)($order->cart->import_meta['phone_checkout_edited_items'] ?? 0) }} من {{ (int)($order->cart->import_meta['phone_checkout_item_count'] ?? 0) }}
-                    </div>
-                    <div class="small mt-2">هذه أسعار اقترحها العميل من التطبيق، وليست تأكيدًا آليًا. راجع الأسعار الفعلية ثم اعتمدها عبر إجراء مراجعة السعر.</div>
-                </div>
-            @endif
-
             <section class="admin-panel p-3 p-md-4 mb-4">
                 <div class="d-flex flex-column flex-lg-row justify-content-between gap-3 align-items-lg-center mb-3">
                     <div>
@@ -74,11 +58,6 @@ $issueStatuses=['unavailable','price_changed','option_issue','rejected'];
                                     <span class="status-badge {{ in_array($item->review_status,$issueStatuses,true)?'status-danger':'status-success' }}">{{ in_array($item->review_status,$issueStatuses,true) ? 'توجد مشكلة' : 'سليم افتراضيًا' }}</span>
                                 </div>
                                 <div class="saved-product-meta d-flex flex-wrap gap-2 mt-2">@if($item->color)<span>اللون: <b>{{ $item->color }}</b></span>@endif @if($item->size)<span>المقاس: <b>{{ $item->size }}</b></span>@endif <span>الكمية: <b>{{ $item->quantity }}</b></span></div>
-                                @if(($item->cartItem?->meta['phone_checkout_unit_price'] ?? null) !== null)
-                                    <div class="small text-info-emphasis mt-2"><strong>سعر التطبيق بعد الكوبون (أدخله العميل):</strong>
-                                        <span class="ltr">{{ number_format((float)$item->cartItem->meta['phone_checkout_unit_price'], 2) }} {{ strtoupper((string)$item->currency) }}</span> — يحتاج تأكيد مسؤول الشراء
-                                    </div>
-                                @endif
                                 <div class="admin-item-prices mt-2"><span>الأصلي <b class="ltr">{{ number_format((float)$item->unit_price_original,2) }} {{ strtoupper((string)$item->currency)==='USD' ? 'دولار' : ($item->currency ?: 'عملة المصدر') }}</b></span><span>بالدينار <b>{{ number_format((float)$item->unit_price_lyd,2) }} د.ل</b></span>@if($item->reviewed_unit_price_lyd!==null)<span>السعر الجديد <b>{{ number_format((float)$item->reviewed_unit_price_lyd,2) }} د.ل</b></span>@endif</div>
                             </div>
                         </div>
