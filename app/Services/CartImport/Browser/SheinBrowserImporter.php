@@ -441,6 +441,17 @@ class SheinBrowserImporter
         }
 
         $meta = is_array($result['meta'] ?? null) ? $result['meta'] : [];
+        if (($meta['account_session_applied'] ?? false) !== true) {
+            $result['items'] = [];
+            $result['status'] = 'account_session_required';
+            $result['message'] = 'الجلسة المحفوظة لم تُطبّق داخل متصفح www.shein.com. سجّلي دخول حساب الشراء من جديد واحفظي الجلسة؛ لن نستعمل سعر الزائر.';
+            $result['meta'] = array_merge($meta, [
+                'price_source_required' => 'www.shein.com',
+                'account_price_verified' => false,
+            ]);
+
+            return $result;
+        }
         $bffHost = strtolower((string) ($meta['bound_bff_response_host'] ?? ''));
         $pageHost = strtolower((string) parse_url((string) ($result['final_url'] ?? ''), PHP_URL_HOST));
         $fromWwwBff = $bffHost === 'www.shein.com';
