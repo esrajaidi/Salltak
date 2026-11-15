@@ -81,7 +81,7 @@ class SheinUrlResolver
 
             $current = $next;
 
-            if (! $this->isShortSheinLink($current)) {
+            if (! $this->isShortSheinLink($current) && ! $this->isTrustedAppjumpUrl($current)) {
                 return $this->shareLandingOnWww($current, $normalizedShortUrl);
             }
         }
