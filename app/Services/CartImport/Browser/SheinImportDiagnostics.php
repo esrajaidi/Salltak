@@ -12,7 +12,7 @@ final class SheinImportDiagnostics
     {
         $meta = is_array($result['meta'] ?? null) ? $result['meta'] : [];
         $allowedStages = ['shared_www', 'shared_mobile', 'shared_mobile_fallback', 'shared_guest_fallback', 'shared_desktop', 'shared_enrichment', 'legacy_primary', 'legacy_retry'];
-        $allowedStatuses = ['loaded', 'missing_usd_prices', 'shared_page_unreadable', 'ae_price_unverified', 'mobile_share_price_needs_review', 'guest_price_needs_review', 'account_price_unverified', 'not_shared_page', 'challenge', 'failed', 'unavailable', 'disabled', 'invalid_url', 'timeout', 'empty'];
+        $allowedStatuses = ['loaded', 'missing_usd_prices', 'shared_page_unreadable', 'ae_price_unverified', 'mobile_share_price_needs_review', 'guest_price_needs_review', 'account_price_unverified', 'account_session_required', 'www_price_source_unavailable', 'not_shared_page', 'challenge', 'failed', 'unavailable', 'disabled', 'invalid_url', 'timeout', 'empty'];
         $stage = in_array($stage, $allowedStages, true) ? $stage : 'other';
         $status = (string) ($result['status'] ?? '');
         $status = in_array($status, $allowedStatuses, true) ? $status : 'other';
@@ -34,6 +34,8 @@ final class SheinImportDiagnostics
             'missing_usd_prices' => 'usd_price_unconfirmed',
             'shared_page_unreadable' => 'no_visible_products',
             'ae_price_unverified' => 'ae_currency_not_confirmed',
+            'account_session_required' => 'purchaser_login_missing',
+            'www_price_source_unavailable' => 'www_price_evidence_missing',
             'not_shared_page' => 'not_share_landing',
             'challenge' => 'security_challenge',
             'unavailable' => 'worker_unavailable',
@@ -80,6 +82,8 @@ final class SheinImportDiagnostics
             'bound_bff_valid_item_count' => $count($meta['bound_bff_valid_item_count'] ?? 0),
             'bound_bff_missing_usd_count' => $count($meta['bound_bff_missing_usd_count'] ?? 0),
             'pricing_country_verified' => ($meta['pricing_country_verified'] ?? false) === true,
+            'www_source_rejected' => ($meta['rejected_non_www_prices'] ?? false) === true,
+            'www_source_evidence' => ($meta['price_source_verified_host'] ?? '') === 'www.shein.com',
             'share_response_count' => $count($responseClasses['share'] ?? 0),
             'other_response_count' => $count($responseClasses['other'] ?? 0),
             'duration_ms' => max(0, min(600_000, $durationMs)),
