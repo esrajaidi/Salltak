@@ -42,6 +42,19 @@ $customerHistories=$order->histories->filter(fn($history)=>$history->event_type!
         </div>
     </header>
 
+    @if(($order->cart?->import_meta['phone_checkout_source'] ?? null) === 'customer_manually_entered')
+        <div class="alert alert-info mb-4">
+            <strong>أسعار تطبيق SHEIN بعد الكوبون — للمراجعة</strong>
+            <div class="small mt-2">
+                @if(($order->cart?->import_meta['phone_checkout_total'] ?? null) !== null)
+                    الإجمالي الذي أدخلته من التطبيق:
+                    <b>{{ number_format((float)$order->cart->import_meta['phone_checkout_total'], 2) }} {{ strtoupper((string)$order->cart->source_currency) }}</b>.
+                @endif
+                مسؤول الطلبات يراجع هذه الأسعار قبل اعتماد المبلغ النهائي للدفع.
+            </div>
+        </div>
+    @endif
+
     @if($order->status==='rejected')<div class="alert alert-danger border-0 shadow-sm"><strong>تم رفض الطلب.</strong><div class="mt-1">السبب: {{ $order->rejection_reason }}</div></div>@endif
     @if($order->status==='needs_customer_action')<div class="alert alert-warning border-0 shadow-sm"><strong>مطلوب ردك.</strong> راجع المنتجات المعلّمة وحدد موافق أو غير موافق.</div>@endif
 
@@ -80,6 +93,12 @@ $customerHistories=$order->histories->filter(fn($history)=>$history->event_type!
                                 <div class="min-w-0 flex-grow-1">
                                     <div class="d-flex flex-wrap justify-content-between gap-2"><h3 class="h6 fw-bold mb-1">{{ $item->name }}</h3><span class="status-badge {{ $issue?'status-danger':'status-success' }}">{{ $itemLabels[$item->review_status] ?? $item->review_status }}</span></div>
                                     <div class="saved-product-meta d-flex flex-wrap gap-2 mt-2">@if($item->color)<span>اللون: <strong>{{ $item->color }}</strong></span>@endif @if($item->size)<span>المقاس: <strong>{{ $item->size }}</strong></span>@endif @if($item->variant)<span>رمز الخيار: <strong class="ltr">{{ $item->variant }}</strong></span>@endif <span>الكمية: <strong>{{ $item->quantity }}</strong></span></div>
+                                    @if(($item->cartItem?->meta['phone_checkout_unit_price'] ?? null) !== null)
+                                        <div class="small text-info-emphasis mt-2">
+                                            <strong>سعر SHEIN بعد الكوبون حسب ما أدخلته:</strong>
+                                            <span class="ltr">{{ number_format((float)$item->cartItem->meta['phone_checkout_unit_price'], 2) }} {{ strtoupper((string)$item->currency) }}</span> — للمراجعة
+                                        </div>
+                                    @endif
                                     <div class="readonly-price mt-3">
                                         <div><small>السعر بالدولار</small><strong class="ltr">{{ number_format((float)$item->unit_price_original,2) }} {{ strtoupper((string)($item->currency ?: 'USD')) === 'USD' ? 'دولار' : ($item->currency ?: 'عملة المصدر') }}</strong></div>
                                         <div><small>السعر بالدينار</small><strong>{{ number_format((float)($item->reviewed_unit_price_lyd ?? $item->unit_price_lyd),2) }} د.ل</strong></div>
