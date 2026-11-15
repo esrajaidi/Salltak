@@ -205,7 +205,7 @@ class SheinAccountSessionController extends Controller
                     $worker,
                 ]);
             $decoded = json_decode($result->output(), true);
-        } catch (\\Throwable) {
+        } catch (\Throwable) {
             $decoded = null;
         }
 
