@@ -68,7 +68,7 @@ final class SheinWwwPriceSourceTest extends TestCase
             'status' => 'ae_price_unverified',
             'items' => [['external_id' => '123', 'unit_price_original' => 15.20]],
             'final_url' => 'https://www.shein.com/ar/cart/share/landing',
-            'meta' => ['dom_item_count' => 1],
+            'meta' => ['dom_item_count' => 1, 'account_session_applied' => true],
         ]);
 
         $this->assertCount(1, $result['items']);
