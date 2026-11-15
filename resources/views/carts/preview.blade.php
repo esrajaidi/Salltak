@@ -38,7 +38,7 @@
             <div>
                 <div class="page-kicker">قبل الحفظ</div>
                 <h1 class="page-heading">راجع سلتك</h1>
-                <p class="page-subtitle">الأسعار المستوردة تقديرية حتى تأكيد الشراء، وتقدر تغيّر الكمية أو تحذف منتج قبل الحفظ.</p>
+                <p class="page-subtitle">الأسعار من رابط المشاركة تقديرية. قارنيها مع سعر SHEIN في الهاتف بعد الكوبون، وعدّلي الكميات قبل الحفظ.</p>
             </div>
             <a class="btn btn-ghost icon-text-btn" href="{{ route('carts.create') }}"><x-icon name="arrow-left" size="18" /> تغيير الرابط</a>
         </div>
@@ -91,6 +91,19 @@
                 <form method="POST" action="{{ route('carts.store') }}" id="cartForm">
                     @csrf
                     <input type="hidden" name="preview_token" value="{{ $previewToken }}">
+                    @if($errors->any())
+                        <div class="alert alert-danger" role="alert">
+                            <strong>راجعي أسعار التطبيق المدخلة.</strong>
+                            {{ $errors->first() }}
+                        </div>
+                    @endif
+                    @if($isSheinShare)
+                        <div class="alert alert-info border-0 mb-3" role="note">
+                            <strong>سعر تطبيق SHEIN بعد الكوبون قد يختلف من سعر رابط المشاركة.</strong>
+                            إذا عندك السعر الفعلي في الهاتف، اكتبيه في خانة «السعر بعد الكوبون» تحت كل منتج. السعر المستورد يبقى ثابتًا، والسعر المدخل للمقارنة والمراجعة من المسؤول فقط، وليس سعر شراء معتمدًا تلقائيًا.
+                            <div class="small mt-2">لازم تكون نفس المنتجات والكميات والعملة، ونفس الكوبون المختار في التطبيق. الخصم مش موحّد بين كل المنتجات.</div>
+                        </div>
+                    @endif
 
                     <div class="row g-2 g-md-3 mb-4">
                         <div class="col-6 col-lg-3"><div class="summary-tile"><div class="summary-label">المتجر</div><div class="summary-value">{{ $store?->name ?? 'موقع خارجي' }}</div></div></div>
@@ -155,6 +168,18 @@
                                                 </div>
                                             </div>
 
+                                            @if($isSheinShare)
+                                                <div class="rounded-3 border p-2 p-md-3 mb-3 bg-light">
+                                                    <label class="form-label fw-semibold small mb-1" for="checkoutPrice{{ $i }}">سعر القطعة في تطبيق SHEIN بعد الكوبون ({{ strtoupper($currency) }})</label>
+                                                    <input id="checkoutPrice{{ $i }}" class="form-control form-control-sm phone-checkout-unit-price ltr" inputmode="decimal" type="number" step="0.01" min="0" max="999999.99"
+                                                        name="items[{{ $i }}][checkout_unit_price]"
+                                                        value="{{ old('items.'.$i.'.checkout_unit_price', '') }}"
+                                                        placeholder="اختياري: اكتبي السعر بعد الكوبون">
+                                                    <div class="small text-secondary mt-1">لو ما تعرفيش السعر، خلي الخانة فارغة. لا يمكن تعديل السعر المستورد الأصلي.</div>
+                                                    <div class="small fw-semibold mt-2">السعر المقارن لهذا المنتج: <span class="line-phone-total ltr">—</span></div>
+                                                </div>
+                                            @endif
+
                                             <div class="d-flex flex-column flex-sm-row align-items-stretch align-items-sm-end justify-content-between gap-2">
                                                 <div>
                                                     <div class="small text-secondary fw-bold mb-1">الكمية</div>
@@ -188,6 +213,30 @@
                         </div>
                     </div>
 
+                    @if($isSheinShare)
+                        <div class="rounded-4 border p-3 p-md-4 mt-3" id="phoneCheckoutComparison">
+                            <h3 class="h6 fw-bold mb-2">مقارنة السلة مع تطبيق SHEIN بعد الكوبون</h3>
+                            <p class="small text-secondary">الأسعار المكتوبة هنا مأخوذة منك، وليست أسعارًا تم التحقق منها تلقائيًا من حساب SHEIN. إذا ما دخلتيش سعر لكل منتج، الحساب المقارن يستخدم السعر المستورد للمنتجات الباقية.</p>
+                            <div class="row g-3 align-items-end">
+                                <div class="col-md-5">
+                                    <label class="form-label small fw-bold" for="phoneCartTotal">إجمالي السلة في تطبيق SHEIN بعد الكوبون ({{ strtoupper($currency) }})</label>
+                                    <input class="form-control phone-cart-total ltr" type="number" id="phoneCartTotal"
+                                        name="checkout_total_from_app" step="0.01" min="0" max="999999.99"
+                                        inputmode="decimal" placeholder="اختياري: الإجمالي الظاهر في الهاتف"
+                                        value="{{ old('checkout_total_from_app', '') }}">
+                                    <div class="form-text">اكتبي إجمالي نفس السلة والكميات، بدون خلط الشحن أو الرسوم غير الموجودة في الأسعار.</div>
+                                </div>
+                                <div class="col-md-7">
+                                    <div class="small fw-bold">إجمالي الأسعار المقارنة: <span id="phoneQuoteSubtotal" class="ltr">—</span></div>
+                                    <div class="small mt-1">ما يقابله بالدينار: <strong id="phoneQuoteLyd">—</strong></div>
+                                    <div class="small mt-1 text-secondary" id="phoneQuoteCount">لم يتم إدخال أسعار التطبيق بعد.</div>
+                                    <div class="small mt-2 fw-bold" id="phoneQuoteDifference" role="status" aria-live="polite"></div>
+                                </div>
+                            </div>
+                            <div class="small text-warning-emphasis mt-3">الرقم المدخل للمراجعة فقط؛ لا يغيّر إجمالي الطلب المعتمد أو قيمة الدفع قبل مراجعة مسؤول الطلبات.</div>
+                        </div>
+                    @endif
+
                     <div class="d-flex flex-column-reverse flex-sm-row justify-content-end gap-2 mt-4">
                         <a class="btn btn-ghost" href="{{ route('carts.create') }}">إلغاء</a>
                         <button class="btn btn-primary px-4 icon-text-btn" type="submit"><x-icon name="check" size="18" /> {{ $sheinPriceNeedsReview ? 'حفظ السلة للمراجعة' : 'حفظ السلة' }}</button>
@@ -213,6 +262,8 @@
 
     function calc(){
         let subtotal = 0;
+        let phoneSubtotal = 0;
+        let phoneEditedCount = 0;
         const rows = allRows();
         rows.forEach(row => {
             const price = Math.max(0, parseFloat(row.dataset.price) || 0);
@@ -221,6 +272,17 @@
             if (qtyInput && Number(qtyInput.value) !== qty) qtyInput.value = qty;
             const line = price * qty;
             subtotal += line;
+            const phoneInput = row.querySelector('.phone-checkout-unit-price');
+            const hasPhonePrice = phoneInput && phoneInput.value.trim() !== '';
+            const phonePrice = hasPhonePrice && Number.isFinite(Number(phoneInput.value))
+                ? Math.max(0, Number(phoneInput.value)) : price;
+            if (hasPhonePrice) phoneEditedCount++;
+            phoneSubtotal += Math.round(phonePrice * qty * 100) / 100;
+            const phoneLine = row.querySelector('.line-phone-total');
+            if (phoneLine) {
+                phoneLine.textContent = money(phonePrice * qty) + ' ' + currencyLabel
+                    + (hasPhonePrice ? ' (من التطبيق)' : ' (تقديري)');
+            }
             row.querySelector('.unit-lyd').textContent = money(price * rate) + ' د.ل';
             row.querySelector('.line-total-original').textContent = money(line) + ' ' + currencyLabel;
             row.querySelector('.line-total-lyd').textContent = money(line * rate) + ' د.ل';
@@ -228,6 +290,30 @@
         document.getElementById('subtotal').textContent = money(subtotal) + ' ' + currencyLabel;
         document.getElementById('lyd').textContent = money(subtotal * rate) + ' د.ل';
         document.getElementById('itemsCount').textContent = rows.length;
+        const phoneSubtotalElement = document.getElementById('phoneQuoteSubtotal');
+        if (phoneSubtotalElement) {
+            phoneSubtotal = Math.round(phoneSubtotal * 100) / 100;
+            phoneSubtotalElement.textContent = money(phoneSubtotal) + ' ' + currencyLabel;
+            document.getElementById('phoneQuoteLyd').textContent = money(phoneSubtotal * rate) + ' د.ل';
+            document.getElementById('phoneQuoteCount').textContent =
+                'أسعار التطبيق المدخلة: ' + phoneEditedCount + ' من ' + rows.length
+                + (phoneEditedCount < rows.length ? ' — بقية المنتجات تستخدم سعر المشاركة التقديري.' : ' — كل الأسعار مدخلة للمراجعة.');
+            const expectedInput = document.getElementById('phoneCartTotal');
+            const difference = document.getElementById('phoneQuoteDifference');
+            const expected = expectedInput?.value.trim() !== '' ? Number(expectedInput.value) : NaN;
+            if (Number.isFinite(expected) && expected >= 0) {
+                const diff = Math.round((phoneSubtotal - expected) * 100) / 100;
+                difference.textContent = Math.abs(diff) < 0.01
+                    ? 'الإجمالي المقارن يطابق الرقم المدخل من التطبيق (لا يزال يحتاج اعتماد المسؤول).'
+                    : 'الفرق عن إجمالي التطبيق: ' + money(Math.abs(diff)) + ' ' + currencyLabel
+                      + (diff > 0 ? ' أعلى في سلتك.' : ' أقل في سلتك.')
+                      + ' راجعي الأسعار والكمية والعروض قبل الحفظ.';
+                difference.classList.toggle('text-success', Math.abs(diff) < 0.01);
+                difference.classList.toggle('text-warning-emphasis', Math.abs(diff) >= 0.01);
+            } else {
+                difference.textContent = 'أدخلي إجمالي التطبيق أعلاه للمقارنة إذا كان متوفرًا.';
+            }
+        }
     }
 
     function renderPagination(){
@@ -249,7 +335,7 @@
     }
 
     document.addEventListener('input', event => {
-        if (event.target.matches('.qty')) calc();
+        if (event.target.matches('.qty, .phone-checkout-unit-price, .phone-cart-total')) calc();
     });
 
     document.addEventListener('click', event => {

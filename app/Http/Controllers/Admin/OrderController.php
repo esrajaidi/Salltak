@@ -41,7 +41,7 @@ class OrderController extends Controller
     public function show(Order $order)
     {
         $order->load(['user','assignee','cart.store','messages.user','histories.user','payments.method','payments.verifier'])->loadCount('items');
-        $itemsPage = $order->items()->with('messages.user')->orderBy('id')->paginate(10, ['*'], 'items_page')->withQueryString();
+        $itemsPage = $order->items()->with(['messages.user', 'cartItem'])->orderBy('id')->paginate(10, ['*'], 'items_page')->withQueryString();
         $reviewSummary = [
             'issues' => $order->items()->whereIn('review_status',['unavailable','price_changed','option_issue','rejected'])->count(),
             'pending' => $order->items()->where('review_status','pending')->count(),
