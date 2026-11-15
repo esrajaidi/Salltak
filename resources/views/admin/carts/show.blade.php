@@ -14,8 +14,27 @@
         <div class="col-md-4"><div class="summary-tile"><div class="summary-label">حالة الاستيراد</div><div class="summary-value fs-6">{{ $importLabels[$cart->import_status] ?? 'غير محددة' }}</div></div></div>
         <div class="col-md-4"><div class="summary-tile"><div class="summary-label">عدد المنتجات</div><div class="summary-value">{{ $itemsPage->total() }}</div></div></div>
     </div>
+    @if(($cart->import_meta['phone_checkout_source'] ?? null) === 'customer_manually_entered')
+        <div class="alert alert-info border-0">
+            <strong>السعر بعد كوبون SHEIN حسب ما أدخله العميل (غير معتمد)</strong>
+            <div class="small mt-2">
+                @if(($cart->import_meta['phone_checkout_total'] ?? null) !== null)
+                    إجمالي التطبيق المدخل:
+                    <b>{{ number_format((float)$cart->import_meta['phone_checkout_total'], 2) }} {{ strtoupper((string)$cart->source_currency) }}</b> •
+                @endif
+                إجمالي المقارنة: <b>{{ number_format((float)($cart->import_meta['phone_checkout_comparison_total'] ?? 0), 2) }} {{ strtoupper((string)$cart->source_currency) }}</b>
+                • أسعار يدوية {{ (int)($cart->import_meta['phone_checkout_edited_items'] ?? 0) }} من {{ (int)($cart->import_meta['phone_checkout_item_count'] ?? 0) }}
+            </div>
+            <div class="small mt-1">لا يُعتمد أي سعر أو مبلغ دفع قبل مراجعة مسؤول الطلبات.</div>
+        </div>
+    @endif
     <form method="POST" action="{{ route('admin.carts.status',$cart) }}" class="row g-2 align-items-end mb-4" data-confirm data-confirm-title="تحديث حالة السلة" data-confirm-text="سيتم حفظ الحالة الجديدة.">@csrf @method('PATCH')<div class="col-md-5 col-lg-3"><label class="form-label">حالة السلة</label><select name="status" class="form-select">@foreach($cartStatusLabels as $key=>$label)<option value="{{ $key }}" @selected($cart->status===$key)>{{ $label }}</option>@endforeach</select></div><div class="col-md-auto"><button class="btn btn-primary icon-text-btn w-100" type="submit"><x-icon name="check"/>تحديث الحالة</button></div></form>
-    <div class="table-wrap"><div class="table-responsive"><table class="table table-modern"><thead><tr><th>المنتج</th><th>السعر الأصلي</th><th>الكمية</th></tr></thead><tbody>@forelse($itemsPage as $item)<tr><td><div class="d-flex align-items-center gap-2">@if($item->image_url)<img src="{{ $item->image_url }}" alt="" width="44" height="44" class="rounded object-fit-cover">@endif<span class="fw-semibold">{{ $item->name }}</span></div></td><td><span class="ltr">{{ number_format((float)$item->unit_price_original,2) }} {{ $currencyLabels[strtoupper((string)$item->currency)] ?? $item->currency }}</span></td><td>{{ $item->quantity }}</td></tr>@empty<tr><td colspan="3" class="text-center text-secondary py-4">لا توجد منتجات.</td></tr>@endforelse</tbody></table></div></div>
+    <div class="table-wrap"><div class="table-responsive"><table class="table table-modern"><thead><tr><th>المنتج</th><th>السعر الأصلي</th><th>الكمية</th></tr></thead><tbody>@forelse($itemsPage as $item)<tr><td><div class="d-flex align-items-center gap-2">@if($item->image_url)<img src="{{ $item->image_url }}" alt="" width="44" height="44" class="rounded object-fit-cover">@endif<span class="fw-semibold">{{ $item->name }}</span></div></td><td><span class="ltr">{{ number_format((float)$item->unit_price_original,2) }} {{ $currencyLabels[strtoupper((string)$item->currency)] ?? $item->currency }}</span>
+            @if(($item->meta['phone_checkout_unit_price'] ?? null) !== null)
+                <div class="small text-info-emphasis">سعر التطبيق المدخل:
+                    <b>{{ number_format((float)$item->meta['phone_checkout_unit_price'], 2) }} {{ strtoupper((string)$item->currency) }}</b>
+                </div>
+            @endif</td><td>{{ $item->quantity }}</td></tr>@empty<tr><td colspan="3" class="text-center text-secondary py-4">لا توجد منتجات.</td></tr>@endforelse</tbody></table></div></div>
     @if($itemsPage->hasPages())<div class="mt-4 pagination-shell">{{ $itemsPage->links() }}</div>@endif
 </div>
 @endsection
