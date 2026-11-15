@@ -34,6 +34,24 @@ class SheinBrowserImporter
         // only passed by the protected admin test; false always means guest.
         $accountState = $useOwnerSession === false ? null
             : app(SheinSessionVault::class)->read($useOwnerSession === true);
+        // The user buys on www.shein.com: never silently price an owner's
+        // customer cart with mobile/guest/public account-agnostic quotations.
+        // Absence of a configured session is NOT proof the share is empty.
+        $wwwOnly = (bool) config('services.cart_import.shein_browser.www_owner_prices_only', true);
+        if ($wwwOnly && $this->isSharedCartUrl($url) && $accountState === null) {
+            return [
+                'ok' => false,
+                'status' => 'account_session_required',
+                'message' => 'لازم حفظ وتفعيل جلسة حساب الشراء في www.shein.com من لوحة المدير قبل تسعير سلات SHEIN. لن نعرض أسعار الزائر أو m.shein.com كسعر شراء.',
+                'items' => [],
+                'payloads' => [],
+                'meta' => [
+                    'pricing_country_requested' => 'AE',
+                    'price_source_required' => 'www.shein.com',
+                    'account_price_verified' => false,
+                ],
+            ];
+        }
         $traceId = (string) Str::uuid();
         $script = base_path('scripts/shein-browser-import.mjs');
         $sharedPageScript = base_path('scripts/shein-shared-page-import.mjs');
@@ -61,6 +79,9 @@ class SheinBrowserImporter
             }
 
             $shared = $this->withAttemptMeta($shared, 1, false);
+            if ($wwwOnly) {
+                $shared = $this->requireWwwPriceEvidence($shared);
+            }
             // An aborted Node process cannot be repaired by launching two
             // additional workers in the same Windows/PHP environment.
             // Return the real runtime failure instead of an empty-cart result.
@@ -73,7 +94,7 @@ class SheinBrowserImporter
             // Use the user's purchasing site for the first attempt. If SHEIN
             // does not offer the shared-cart API on www, preserve the products
             // through an explicitly labeled mobile-service fallback.
-            if ($this->isSharedCartUrl($url) && ($shared['items'] ?? []) === []) {
+            if (! $wwwOnly && $this->isSharedCartUrl($url) && ($shared['items'] ?? []) === []) {
                 $mobileProfile = storage_path('app/shein-shared-mobile-fallback/'.Str::uuid());
                 try {
                     $mobile = $this->runWorker(
@@ -104,7 +125,7 @@ class SheinBrowserImporter
             // still works. Preserve the imported products as an explicitly
             // unverified guest quote, never as a confirmed account price.
             // The owner's encrypted cookies are NOT passed to this retry.
-            if ($accountState !== null && $this->isSharedCartUrl($url) && ($shared['items'] ?? []) === []) {
+            if (! $wwwOnly && $accountState !== null && $this->isSharedCartUrl($url) && ($shared['items'] ?? []) === []) {
                 $guestProfile = storage_path('app/shein-shared-page-guest/'.Str::uuid());
                 try {
                     $guest = $this->runWorker($url, $guestProfile, $sharedPageScript, 'shared_guest_fallback', $traceId, null, 'm.shein.com');
@@ -184,6 +205,9 @@ class SheinBrowserImporter
                 }
 
                 $sharedRetry = $this->withAttemptMeta($sharedRetry, 2, true);
+                if ($wwwOnly) {
+                    $sharedRetry = $this->requireWwwPriceEvidence($sharedRetry);
+                }
                 $sharedRetry['meta']['source'] = 'shein_shared_items_page_retry';
                 $sharedRetry['meta']['shared_page_retry'] = true;
                 $sharedRetry['meta']['initial_shared_status'] = $shared['status'] ?? null;
@@ -400,6 +424,52 @@ class SheinBrowserImporter
         $decoded['meta'] = is_array($decoded['meta'] ?? null) ? $decoded['meta'] : [];
 
         return $decoded;
+    }
+
+    /**
+     * A genuine www account/storefront response must be the origin of ALL
+     * prices if website-only mode is enabled. A www URL that redirected to m
+     * does not qualify; neither do mobile BFF rows attached to a www page.
+     *
+     * Even a www price is a storefront estimate, not an after-coupon purchase
+     * quote without an authenticated checkout-level attestation.
+     */
+    private function requireWwwPriceEvidence(array $result): array
+    {
+        if (($result['items'] ?? []) === []) {
+            return $result;
+        }
+
+        $meta = is_array($result['meta'] ?? null) ? $result['meta'] : [];
+        $bffHost = strtolower((string) ($meta['bound_bff_response_host'] ?? ''));
+        $pageHost = strtolower((string) parse_url((string) ($result['final_url'] ?? ''), PHP_URL_HOST));
+        $fromWwwBff = $bffHost === 'www.shein.com';
+        $fromWwwDom = $bffHost === ''
+            && $pageHost === 'www.shein.com'
+            && (int) ($meta['dom_item_count'] ?? $meta['visible_product_count'] ?? 0) > 0
+            && ($meta['trusted_source'] ?? '') !== 'bound_share_bff';
+
+        if ($fromWwwBff || $fromWwwDom) {
+            $result['meta'] = array_merge($meta, [
+                'price_source_required' => 'www.shein.com',
+                'price_source_verified_host' => 'www.shein.com',
+                'account_price_verified' => false,
+            ]);
+
+            return $result;
+        }
+
+        // Keep diagnostics, not incorrectly attributed mobile/guest prices.
+        $result['items'] = [];
+        $result['status'] = 'www_price_source_unavailable';
+        $result['message'] = 'SHEIN وجّه استجابة الأسعار إلى خدمة غير www.shein.com. تم رفض أسعار المشاركة أو الموبايل حتى لا تختلف عن مصدر الشراء المطلوب.';
+        $result['meta'] = array_merge($meta, [
+            'price_source_required' => 'www.shein.com',
+            'rejected_non_www_prices' => true,
+            'account_price_verified' => false,
+        ]);
+
+        return $result;
     }
 
     private function shouldRetryEmptyLoadedResult(array $result): bool
