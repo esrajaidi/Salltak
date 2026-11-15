@@ -175,7 +175,7 @@ class SheinShareAdapter implements CartSourceAdapter
 
         if (($browser['meta']['worker_aborted'] ?? false) === true) {
             return ImportResult::needsReview(
-                'سلتك ما قدرتش تشغّل Node.js أو Chromium على Windows (exit 134). هذه مشكلة في تشغيل المتصفح المحلي، وليست سلة SHEIN فارغة. شغّلي npm run browser:smoke ثم npm run browser:doctor وراجعي إعداد SHEIN_BROWSER_NODE.',
+                (string) ($browser['message'] ?? 'توقف عامل Node/Chromium قبل استخراج منتجات السلة (exit 134). هذه ليست نتيجة تدل أن سلة SHEIN فارغة.'),
                 currency: $fallbackCurrency,
                 meta: $baseMeta
             );
