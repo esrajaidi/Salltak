@@ -7,4 +7,5 @@ class OrderItem extends Model
     protected function casts(): array { return ['quantity'=>'integer','unit_price_original'=>'decimal:2','unit_price_lyd'=>'decimal:2','reviewed_unit_price_lyd'=>'decimal:2','line_total_lyd'=>'decimal:2']; }
     public function order(){ return $this->belongsTo(Order::class); }
     public function messages(){ return $this->hasMany(OrderMessage::class); }
+    public function cartItem(){ return $this->belongsTo(CartItem::class, 'cart_item_id'); }
 }
