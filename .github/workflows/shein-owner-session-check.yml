@@ -73,6 +73,13 @@ jobs:
           node --test tests/static/shein-www-price-probe.test.mjs
           php -l app/Http/Controllers/Admin/SheinAccountSessionController.php
 
+      - name: Windows Node abort 134 diagnostics safeguards
+        run: |
+          node --check scripts/shein-browser-doctor.mjs
+          node --test tests/static/shein-windows-browser-runtime.test.mjs
+          php -l app/Services/CartImport/Browser/SheinBrowserImporter.php
+          php -l app/Services/CartImport/Adapters/SheinShareAdapter.php
+
       - name: SHEIN local PHP and browser timeout regression
         run: |
           php -l app/Http/Controllers/CartController.php

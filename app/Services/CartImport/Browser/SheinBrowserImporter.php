@@ -61,6 +61,12 @@ class SheinBrowserImporter
             }
 
             $shared = $this->withAttemptMeta($shared, 1, false);
+            // An aborted Node process cannot be repaired by launching two
+            // additional workers in the same Windows/PHP environment.
+            // Return the real runtime failure instead of an empty-cart result.
+            if (($shared['meta']['worker_aborted'] ?? false) === true) {
+                return $shared;
+            }
             $shared['meta']['source'] = 'shein_shared_items_page';
             $shared['meta']['share_fetch_host'] = 'www.shein.com';
 
@@ -323,6 +329,21 @@ class SheinBrowserImporter
         }
 
         $decoded = json_decode(trim($result->output()), true);
+        if (! is_array($decoded) && $result->exitCode() === 134) {
+            // 134 is commonly a process abort (e.g. SIGABRT). This is NOT
+            // a SHEIN empty cart, security challenge or invalid shared link.
+            // Never include raw Node/Chromium stderr in user-facing output.
+            return [
+                'ok' => false,
+                'status' => 'unavailable',
+                'message' => 'تعطّل تشغيل Node.js/Chromium على هذا الجهاز (exit 134) قبل فتح SHEIN. من Terminal داخل سلتك شغّلي node -v ثم npm run browser:smoke ثم npm run browser:doctor، وتحققي من مسار node.exe.',
+                'error' => 'browser_runtime_aborted',
+                'exit_code' => 134,
+                'items' => [],
+                'payloads' => [],
+                'meta' => ['worker_aborted' => true],
+            ];
+        }
         if (! is_array($decoded)) {
             $errorOutput = trim($result->errorOutput());
             $unavailable = str_contains($errorOutput, 'ERR_MODULE_NOT_FOUND')

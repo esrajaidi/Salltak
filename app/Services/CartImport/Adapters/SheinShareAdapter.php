@@ -173,6 +173,14 @@ class SheinShareAdapter implements CartSourceAdapter
             );
         }
 
+        if (($browser['meta']['worker_aborted'] ?? false) === true) {
+            return ImportResult::needsReview(
+                'سلتك ما قدرتش تشغّل Node.js أو Chromium على Windows (exit 134). هذه مشكلة في تشغيل المتصفح المحلي، وليست سلة SHEIN فارغة. شغّلي npm run browser:smoke ثم npm run browser:doctor وراجعي إعداد SHEIN_BROWSER_NODE.',
+                currency: $fallbackCurrency,
+                meta: $baseMeta
+            );
+        }
+
         if (in_array($browserStatus, ['unavailable', 'disabled'], true)) {
             return ImportResult::needsReview(
                 'تعذر تشغيل متصفح Chromium الخاص باستيراد SHEIN. نفّذ npm install ثم npx playwright install chromium داخل المشروع، وبعدها أعد جلب السلة.',
