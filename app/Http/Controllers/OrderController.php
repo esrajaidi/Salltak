@@ -107,7 +107,7 @@ class OrderController extends Controller
     {
         abort_unless($order->user_id === $request->user()->id, 403);
         $order->load(['cart.store','assignee','messages.user','histories.user','payments.method'])->loadCount('items');
-        $itemsPage = $order->items()->with(['messages.user', 'cartItem'])->orderBy('id')->paginate(12, ['*'], 'items_page')->withQueryString();
+        $itemsPage = $order->items()->with('messages.user')->orderBy('id')->paginate(12, ['*'], 'items_page')->withQueryString();
         $depositOutstanding = max(0, (float) $order->deposit_amount - (float) $order->paid_amount);
         $dueAmount = $depositOutstanding > 0 ? $depositOutstanding : (float) $order->remaining_amount;
         $paymentMethods = PaymentMethod::query()
