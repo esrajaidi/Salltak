@@ -22,7 +22,7 @@ final class SheinWwwPriceSourceTest extends TestCase
             'status' => 'loaded',
             'items' => [['external_id' => '123', 'unit_price_original' => 12.50]],
             'final_url' => 'https://m.shein.com/ar/cart/share/landing',
-            'meta' => ['bound_bff_response_host' => 'www.shein.com', 'trusted_source' => 'bound_share_bff'],
+            'meta' => ['bound_bff_response_host' => 'www.shein.com', 'trusted_source' => 'bound_share_bff', 'account_session_applied' => true],
         ]);
 
         $this->assertCount(1, $result['items']);
@@ -38,6 +38,7 @@ final class SheinWwwPriceSourceTest extends TestCase
             'final_url' => 'https://www.shein.com/ar/cart/share/landing',
             'meta' => [
                 'bound_bff_response_host' => 'm.shein.com',
+                'account_session_applied' => true,
                 'dom_item_count' => 4,
             ],
         ]);
@@ -54,7 +55,7 @@ final class SheinWwwPriceSourceTest extends TestCase
             'status' => 'ae_price_unverified',
             'items' => [['external_id' => '123', 'unit_price_original' => 11]],
             'final_url' => 'https://m.shein.com/cart/share/landing',
-            'meta' => ['dom_item_count' => 1],
+            'meta' => ['dom_item_count' => 1, 'account_session_applied' => true],
         ]);
 
         $this->assertSame([], $result['items']);
@@ -72,6 +73,20 @@ final class SheinWwwPriceSourceTest extends TestCase
 
         $this->assertCount(1, $result['items']);
         $this->assertSame('www.shein.com', $result['meta']['price_source_verified_host']);
+        $this->assertFalse($result['meta']['account_price_verified']);
+    }
+
+    public function test_www_page_prices_are_blocked_if_owner_session_was_not_applied(): void
+    {
+        $result = $this->enforce([
+            'status' => 'loaded',
+            'items' => [['external_id' => '123', 'unit_price_original' => 11.25]],
+            'final_url' => 'https://www.shein.com/ar/cart/share/landing',
+            'meta' => ['bound_bff_response_host' => 'www.shein.com', 'account_session_applied' => false],
+        ]);
+
+        $this->assertSame([], $result['items']);
+        $this->assertSame('account_session_required', $result['status']);
         $this->assertFalse($result['meta']['account_price_verified']);
     }
 
