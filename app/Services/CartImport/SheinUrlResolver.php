@@ -46,17 +46,32 @@ class SheinUrlResolver
 
             $location = trim((string) $response->header('Location'));
             if ($location === '') {
-                // onelink often responds 200 with an HTML/JS app deeplink,
-                // not an HTTP 3xx redirect. The link's group_id can be
-                // embedded in shareInfo even when a desktop browser only
-                // sees SHEIN's homepage.
-                $fromPage = $response->successful()
-                    ? $this->shareLandingFromHtml(
-                        (string) $response->body(),
-                        $normalizedShortUrl,
-                    )
-                    : null;
-                return $fromPage ?? $this->shareLandingOnWww($current, $normalizedShortUrl);
+                if (! $response->successful()) {
+                    return $url;
+                }
+
+                $html = (string) $response->body();
+                if ($this->isTrustedAppjumpUrl($current)) {
+                    return $this->shareLandingFromAppjumpHtml($html, $normalizedShortUrl) ?? $url;
+                }
+
+                $fromPage = $this->shareLandingFromHtml($html, $normalizedShortUrl)
+                    ?? $this->shareLandingFromDeeplinkHtml($html, $normalizedShortUrl);
+                if ($fromPage !== null) {
+                    return $fromPage;
+                }
+
+                // SHEIN's onelink sometimes returns HTTP 200 with two hidden
+                // inputs instead of a Location header: a sheinlink deeplink
+                // and a SHEIN-owned appjump URL. Only follow the one exact
+                // trusted appjump host/path, never an arbitrary HTML URL.
+                $appjump = $this->trustedAppjumpFromHtml($html);
+                if ($appjump !== null && $this->isShortSheinLink($current)) {
+                    $current = $appjump;
+                    continue;
+                }
+
+                return $this->shareLandingOnWww($current, $normalizedShortUrl);
             }
 
             $next = $this->absoluteUrl($location, $current);
@@ -72,6 +87,112 @@ class SheinUrlResolver
         }
 
         return $this->shareLandingOnWww($current, $url);
+    }
+
+    /**
+     * Only read static hidden input values from SHEIN's onelink page.
+     * Never run JavaScript found in remote HTML or log raw link tokens.
+     */
+    private function hiddenInputValue(string $html, string $id): ?string
+    {
+        if (strlen($html) > 2_000_000
+            || ! preg_match_all('~<input\b[^>]{0,8192}>~i', $html, $tags)) {
+            return null;
+        }
+
+        foreach ($tags[0] as $tag) {
+            if (! preg_match('~\bid\s*=\s*(["\x27])([a-z]+)\1~i', $tag, $idMatch)
+                || strcasecmp($idMatch[2], $id) !== 0
+                || ! preg_match('~\bvalue\s*=\s*(["\x27])([^\x22\x27]{1,8000})\1~i', $tag, $valueMatch)) {
+                continue;
+            }
+
+            return html_entity_decode($valueMatch[2], ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        }
+
+        return null;
+    }
+
+    private function shareLandingFromDeeplinkHtml(string $html, string $original): ?string
+    {
+        $raw = $this->hiddenInputValue($html, 'deeplink');
+        if ($raw === null) {
+            return null;
+        }
+
+        $parts = parse_url($raw);
+        if (! is_array($parts) || strtolower((string) ($parts['scheme'] ?? '')) !== 'sheinlink'
+            || strtolower((string) ($parts['host'] ?? '')) !== 'applink'
+            || ($parts['path'] ?? '') !== '/share_receiver') {
+            return null;
+        }
+
+        parse_str((string) ($parts['query'] ?? ''), $query);
+        $data = json_decode((string) ($query['data'] ?? ''), true);
+        if (! is_array($data) || isset($data['share_type']) && $data['share_type'] !== 'cart') {
+            return null;
+        }
+
+        return $this->canonicalShareLanding(
+            (string) ($data['group_id'] ?? ''),
+            $original,
+            is_string($data['shc'] ?? null) ? $data['shc'] : null,
+        );
+    }
+
+    private function trustedAppjumpFromHtml(string $html): ?string
+    {
+        $candidate = $this->hiddenInputValue($html, 'url');
+
+        return $candidate !== null && $this->isTrustedAppjumpUrl($candidate)
+            ? $candidate : null;
+    }
+
+    private function isTrustedAppjumpUrl(string $url): bool
+    {
+        $parts = parse_url($url);
+
+        return is_array($parts)
+            && strtolower((string) ($parts['scheme'] ?? '')) === 'https'
+            && strtolower((string) ($parts['host'] ?? '')) === 'api-shein.shein.com'
+            && ($parts['path'] ?? '') === '/h5/sharejump/appjump'
+            && ! isset($parts['user']) && ! isset($parts['pass']) && ! isset($parts['port']);
+    }
+
+    private function shareLandingFromAppjumpHtml(string $html, string $original): ?string
+    {
+        if (strlen($html) > 2_000_000
+            || ! preg_match('~\bshareInfo\s*=\s*(\{[^\r\n]{1,15000}\})~', $html, $matches)) {
+            return null;
+        }
+
+        $info = json_decode($matches[1], true);
+        if (! is_array($info)
+            || (isset($info['share_type']) && $info['share_type'] !== 'cart')
+            || (isset($info['status']) && is_numeric($info['status']) && (int) $info['status'] < 0)) {
+            return null;
+        }
+
+        return $this->canonicalShareLanding((string) ($info['id'] ?? ''), $original);
+    }
+
+    private function canonicalShareLanding(string $groupId, string $original, ?string $embeddedShc = null): ?string
+    {
+        parse_str((string) (parse_url($original, PHP_URL_QUERY) ?: ''), $shortQuery);
+        $shc = $shortQuery['shc'] ?? null;
+
+        if (! preg_match('/^\d{6,20}$/D', $groupId)
+            || ! is_string($shc) || ! preg_match('/^2_[A-Za-z0-9_-]{4,120}$/D', $shc)
+            || ($embeddedShc !== null && $embeddedShc !== '' && $embeddedShc !== $shc)) {
+            return null;
+        }
+
+        return 'https://www.shein.com/ar/cart/share/landing?'.http_build_query([
+            'group_id' => $groupId,
+            'shc' => $shc,
+            'local_country' => 'AE',
+            'cart_share' => '1',
+        ], '', '&', PHP_QUERY_RFC3986);
     }
 
     /**
