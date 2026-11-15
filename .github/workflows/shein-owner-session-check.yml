@@ -82,6 +82,17 @@ jobs:
           php tests/static/shein-www-product-links-check.php
           node --test tests/static/shein-ae-pricing.test.mjs tests/static/shein-share-bff-items.test.mjs
           node --test tests/static/shein-www-shared-cart-fallback.test.mjs
+      - name: SHEIN www purchaser session is the only allowed price source
+        run: |
+          php -l config/services.php
+          php -l app/Services/CartImport/Browser/SheinBrowserImporter.php
+          php -l app/Services/CartImport/Adapters/SheinShareAdapter.php
+          php -l app/Services/CartImport/Browser/SheinImportDiagnostics.php
+          php -l tests/Unit/SheinWwwPriceSourceTest.php
+          node --test tests/static/shein-www-pricing-policy.test.mjs
+          php tests/static/shein-owner-guest-fallback-check.php
+          php artisan test --filter=SheinWwwPriceSourceTest
+
       - name: SHEIN purchaser cart readiness safety checks
         run: |
           node --check scripts/shein-owner-cart-evidence.mjs
