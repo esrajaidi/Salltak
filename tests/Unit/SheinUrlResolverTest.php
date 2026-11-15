@@ -105,6 +105,89 @@ class SheinUrlResolverTest extends TestCase
         Http::assertSentCount(1);
     }
 
+    public function test_onelink_hidden_deeplink_data_resolves_cart_group(): void
+    {
+        $short = 'https://onelink.shein.com/58/6663yrqirv65?shc=2_RNBOXsQCBJ4';
+        $data = rawurlencode(json_encode([
+            'group_id' => '876543210',
+            'shc' => '2_RNBOXsQCBJ4',
+            'local_country' => 'SA',
+        ]));
+        $html = '<input type="hidden" id="deeplink" value="sheinlink://applink/share_receiver?data='.$data.'">';
+        Http::fake([$short => Http::response($html, 200, ['Content-Type' => 'text/html'])]);
+
+        $resolved = (new SheinUrlResolver(new StoreUrlClassifier()))->resolve($short);
+        $parts = parse_url($resolved);
+        parse_str((string) ($parts['query'] ?? ''), $query);
+
+        $this->assertSame('www.shein.com', $parts['host']);
+        $this->assertSame('876543210', $query['group_id']);
+        $this->assertSame('2_RNBOXsQCBJ4', $query['shc']);
+        $this->assertSame('AE', $query['local_country']);
+        Http::assertSentCount(1);
+    }
+
+    public function test_onelink_hidden_appjump_resolves_cart_group(): void
+    {
+        $short = 'https://onelink.shein.com/58/6663yrqirv65?shc=2_RNBOXsQCBJ4';
+        $jump = 'https://api-shein.shein.com/h5/sharejump/appjump?source=onelink';
+        $html = '<input id="url" value="'.htmlspecialchars($jump, ENT_QUOTES).'">';
+        $jumpHtml = '<script>var shareInfo = {"id":876543210,"share_type":"cart","status":1};'. "\n".'</script>';
+        Http::fake([
+            $short => Http::response($html, 200),
+            $jump => Http::response($jumpHtml, 200),
+        ]);
+
+        $resolved = (new SheinUrlResolver(new StoreUrlClassifier()))->resolve($short);
+        $parts = parse_url($resolved);
+        parse_str((string) ($parts['query'] ?? ''), $query);
+
+        $this->assertSame('www.shein.com', $parts['host']);
+        $this->assertSame('876543210', $query['group_id']);
+        $this->assertSame('2_RNBOXsQCBJ4', $query['shc']);
+        Http::assertSentCount(2);
+    }
+
+    public function test_onelink_appjump_location_header_is_followed(): void
+    {
+        $short = 'https://onelink.shein.com/58/6663yrqirv65?shc=2_RNBOXsQCBJ4';
+        $jump = 'https://api-shein.shein.com/h5/sharejump/appjump?source=onelink';
+        Http::fake([
+            $short => Http::response('', 302, ['Location' => $jump]),
+            $jump => Http::response("<script>shareInfo={\"id\":\"876543210\",\"share_type\":\"cart\"};\n</script>", 200),
+        ]);
+        $resolved = (new SheinUrlResolver(new StoreUrlClassifier()))->resolve($short);
+        parse_str((string) parse_url($resolved, PHP_URL_QUERY), $query);
+        $this->assertSame('876543210', $query['group_id']);
+        Http::assertSentCount(2);
+    }
+
+    public function test_onelink_does_not_follow_untrusted_hidden_urls(): void
+    {
+        $short = 'https://onelink.shein.com/58/6663yrqirv65?shc=2_RNBOXsQCBJ4';
+        $html = '<input id="url" value="https://example.com/h5/sharejump/appjump?group_id=876543210">';
+        Http::fake([$short => Http::response($html, 200)]);
+
+        $this->assertSame(
+            $short,
+            (new SheinUrlResolver(new StoreUrlClassifier()))->resolve($short),
+        );
+        Http::assertSentCount(1);
+    }
+
+    public function test_non_cart_share_info_is_not_accepted(): void
+    {
+        $short = 'https://onelink.shein.com/58/6663yrqirv65?shc=2_RNBOXsQCBJ4';
+        $jump = 'https://api-shein.shein.com/h5/sharejump/appjump?source=onelink';
+        Http::fake([
+            $short => Http::response('<input id="url" value="'.$jump.'">', 200),
+            $jump => Http::response("<script>shareInfo={\"id\":\"876543210\",\"share_type\":\"product\"};\n</script>", 200),
+        ]);
+
+        $this->assertSame($short, (new SheinUrlResolver(new StoreUrlClassifier()))->resolve($short));
+        Http::assertSentCount(2);
+    }
+
     public function test_onelink_rejects_redirects_outside_shein(): void
     {
         $short = 'https://onelink.shein.com/52/example?shc=abc';
