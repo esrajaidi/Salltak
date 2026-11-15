@@ -19,6 +19,26 @@
             <div class="col-6 col-lg-3"><div class="summary-tile is-primary h-100"><div class="summary-label">الإجمالي بالدينار</div><div class="summary-value text-primary fs-5">{{ number_format((float)$cart->total_lyd,2) }} د.ل</div></div></div>
         </div>
 
+        @if(($cart->import_meta['phone_checkout_source'] ?? null) === 'customer_manually_entered')
+            <div class="alert alert-info border-0 mb-4">
+                <strong>مقارنة أسعار تطبيق SHEIN بعد الكوبون (مدخلة يدويًا)</strong>
+                <div class="d-flex flex-wrap gap-3 mt-2">
+                    @if(($cart->import_meta['phone_checkout_total'] ?? null) !== null)
+                        <span>الإجمالي المكتوب من التطبيق:
+                            <b class="ltr">{{ number_format((float)$cart->import_meta['phone_checkout_total'], 2) }} {{ strtoupper((string)$cart->source_currency) }}</b>
+                        </span>
+                    @endif
+                    <span>الإجمالي المقارن:
+                        <b class="ltr">{{ number_format((float)($cart->import_meta['phone_checkout_comparison_total'] ?? 0), 2) }} {{ strtoupper((string)$cart->source_currency) }}</b>
+                    </span>
+                    <span>أسعار التطبيق المدخلة:
+                        <b>{{ (int)($cart->import_meta['phone_checkout_edited_items'] ?? 0) }} / {{ (int)($cart->import_meta['phone_checkout_item_count'] ?? 0) }}</b>
+                    </span>
+                </div>
+                <div class="small mt-2">هذه الأسعار للمقارنة ومراجعة المسؤول فقط. مبلغ السلة أو الطلب المستورد يبقى كما هو لحين اعتماد السعر الصحيح.</div>
+            </div>
+        @endif
+
         <div class="surface-card-elevated reveal is-visible p-3 p-md-4">
             <div class="d-flex align-items-center justify-content-between gap-3 mb-2">
                 <div><h2 class="h5 fw-bold mb-1">منتجات السلة</h2><div class="small text-secondary">السعر الأصلي والسعر المحول محفوظان حسب سعر الصرف وقت إنشاء السلة.</div></div>
@@ -41,6 +61,13 @@
                                 @if($item->size)<span>المقاس: <strong>{{ $item->size }}</strong></span>@endif
                                 @if($item->variant)<span>الخيار: <strong>{{ $item->variant }}</strong></span>@endif
                             </div>
+                            @if(($item->meta['phone_checkout_unit_price'] ?? null) !== null)
+                                <div class="small text-info-emphasis mt-2">
+                                    <strong>السعر بعد الكوبون من تطبيق SHEIN (مدخل يدويًا):</strong>
+                                    <span class="ltr">{{ number_format((float)$item->meta['phone_checkout_unit_price'], 2) }} {{ strtoupper((string)$item->currency) }}</span>
+                                    — ينتظر مراجعة المسؤول
+                                </div>
+                            @endif
                             <div class="small text-secondary mt-2">الكمية: <strong>{{ $item->quantity }}</strong> • إجمالي المنتج: <span class="ltr d-inline-block">{{ number_format((float)$item->line_total_original,2) }} {{ $currencyLabels[strtoupper((string)$item->currency)] ?? $item->currency }}</span> / <strong class="text-primary">{{ number_format($lineLyd,2) }} د.ل</strong></div>
                         </div>
                         <div class="saved-product-prices">
