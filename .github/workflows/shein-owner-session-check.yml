@@ -88,6 +88,21 @@ jobs:
           node --test tests/static/shein-www-price-probe.test.mjs
           php -l app/Http/Controllers/Admin/SheinAccountSessionController.php
 
+      - name: SHEIN phone after-coupon comparison and immutable order prices
+        run: |
+          php -l app/Http/Controllers/CartController.php
+          php -l app/Models/OrderItem.php
+          php -l app/Http/Controllers/OrderController.php
+          php -l app/Http/Controllers/Admin/OrderController.php
+          php -l tests/Feature/CartFlowTest.php
+          node --test tests/static/shein-phone-checkout-quote.test.mjs
+
+      - name: SHEIN after-coupon price comparison feature tests
+        env:
+          DB_CONNECTION: sqlite
+          DB_DATABASE: ':memory:'
+        run: php artisan test --filter=CartFlowTest
+
       - name: Windows Node abort 134 diagnostics safeguards
         run: |
           node --check scripts/shein-browser-doctor.mjs
