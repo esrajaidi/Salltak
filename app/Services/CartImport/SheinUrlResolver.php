@@ -183,7 +183,7 @@ class SheinUrlResolver
 
         if (! preg_match('/^\d{6,20}$/D', $groupId)
             || ! is_string($shc) || ! preg_match('/^2_[A-Za-z0-9_-]{4,120}$/D', $shc)
-            || ($embeddedShc !== null && $embeddedShc !== '' && $embeddedShc !== $shc)) {
+            || ($embeddedShc !== null && $embeddedShc !== $shc)) {
             return null;
         }
 
@@ -209,12 +209,20 @@ class SheinUrlResolver
         }
 
         // Onelink may embed a flat JSON shareInfo object directly.
-        if (preg_match('~\bshareInfo\s*=\s*(\{[^\r\n]{1,15000}\})~', $html, $matches)) {
-            $info = json_decode($matches[1], true);
-            if (is_array($info)
-                && (! isset($info['share_type']) || $info['share_type'] === 'cart')
-                && (! isset($info['status']) || ! is_numeric($info['status']) || (int) $info['status'] >= 0)
-                && is_string($info['shc'] ?? null)) {
+        if (preg_match_all('~<script\b[^>]*>([\s\S]{0,15000}?)</script>~i', $html, $scripts)) {
+            foreach ($scripts[1] as $script) {
+                if (! preg_match('~\bshareInfo\s*=\s*(\{[^\r\n]{1,15000}\})~', $script, $matches)) {
+                    continue;
+                }
+
+                $info = json_decode($matches[1], true);
+                if (! is_array($info)
+                    || (isset($info['share_type']) && $info['share_type'] !== 'cart')
+                    || (isset($info['status']) && is_numeric($info['status']) && (int) $info['status'] < 0)
+                    || ! is_string($info['shc'] ?? null)) {
+                    continue;
+                }
+
                 $groupId = $info['group_id'] ?? $info['groupId'] ?? null;
                 if (is_string($groupId) || is_int($groupId)) {
                     $landing = $this->canonicalShareLanding((string) $groupId, $original, $info['shc']);
