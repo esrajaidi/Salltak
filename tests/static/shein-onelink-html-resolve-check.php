@@ -38,6 +38,10 @@ foreach ([
     '<html>ordinary homepage</html>',
     '<script>shareInfo={"group_id":"invalid"}</script>',
     '<script>shareInfo={"group_id":"876543210999999999999999999"}</script>',
+    '<input id="url" value="https://example.com/h5/sharejump/appjump?group_id=876543210">',
+    '<script>let landing="https://example.com/cart/share/landing?shc=2_RNBOXsQCBJ4&group_id=876543210";</script>',
+    '<script>shareInfo={"group_id":"876543210","shc":"2_OtherShare"}</script>',
+    '<script>shareInfo={"group_id":"876543210","shc":""}</script>',
     str_repeat('x', 2_000_001),
 ] as $notShared) {
     if ($method->invoke($resolver, $notShared, $original) !== null) {
