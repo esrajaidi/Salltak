@@ -14,6 +14,14 @@
     وقد تفرض SHEIN قيودًا على الاستعمال الآلي. لا تتجاوزي Captcha أو أي تحقق أمني.
 </div>
 
+@if(config('services.cart_import.shein_browser.www_owner_prices_only', true))
+    <div class="alert alert-info border-0 p-3 mb-4" role="status">
+        <strong>مصدر أسعار SHEIN: www.shein.com فقط</strong>
+        <p class="mb-1 mt-2">لازم جلسة حساب الشراء محفوظة ومفعلة. إذا SHEIN عرضت سعر المشاركة أو حوّلت الاستجابة إلى m.shein.com، سلتك ترفضه بدل عرضه كسعر حسابك.</p>
+        <p class="small mb-0">ملاحظة: أسعار الموقع، حتى بعد تسجيل الدخول، مش بالضرورة تشمل كوبون التطبيق. السعر النهائي ما يعتبرش مؤكدًا إلا من بيانات تسعير الحساب بعد الكوبون.</p>
+    </div>
+@endif
+
 <div class="row g-3 mb-4">
     <div class="col-sm-6">
         <div class="surface-card admin-panel p-4 h-100">

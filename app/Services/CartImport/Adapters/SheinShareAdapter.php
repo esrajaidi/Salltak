@@ -165,6 +165,17 @@ class SheinShareAdapter implements CartSourceAdapter
             'pricing_country_verified' => (bool) ($browser['meta']['pricing_country_verified'] ?? false),
         ]);
 
+        if (in_array($browserStatus, ['account_session_required', 'www_price_source_unavailable'], true)) {
+            return ImportResult::needsReview(
+                (string) ($browser['message'] ?? 'تعذر جلب سعر سلة SHEIN من حساب الشراء في www.shein.com. لن نستخدم أسعار الموبايل أو الزائر بدلًا منه.'),
+                currency: $fallbackCurrency,
+                meta: $baseMeta + [
+                    'price_source_required' => 'www.shein.com',
+                    'account_price_verified' => false,
+                ],
+            );
+        }
+
         if ($browserStatus === 'challenge') {
             return ImportResult::needsReview(
                 'SHEIN طلب تحقق أمني داخل المتصفح. على Mac عطّل Headless من ملف .env، افتح السلة مرة أخرى وأكمل التحقق في نافذة Chromium، وبعدها سيحاول النظام جلب المنتجات تلقائيًا.',
