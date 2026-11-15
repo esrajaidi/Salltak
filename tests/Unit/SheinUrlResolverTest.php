@@ -175,6 +175,49 @@ class SheinUrlResolverTest extends TestCase
         Http::assertSentCount(1);
     }
 
+    public function test_onelink_does_not_extract_group_id_from_external_cart_url_in_script(): void
+    {
+        $short = 'https://onelink.shein.com/58/6663yrqirv65?shc=2_RNBOXsQCBJ4';
+        $html = '<script>let landing="https://example.com/cart/share/landing?shc=2_RNBOXsQCBJ4&group_id=876543210";</script>';
+        Http::fake([$short => Http::response($html, 200)]);
+
+        $this->assertSame($short, (new SheinUrlResolver(new StoreUrlClassifier()))->resolve($short));
+        Http::assertSentCount(1);
+    }
+
+    public function test_onelink_rejects_shareinfo_with_mismatched_shc(): void
+    {
+        $short = 'https://onelink.shein.com/58/6663yrqirv65?shc=2_RNBOXsQCBJ4';
+        $html = '<script>var shareInfo={"group_id":"876543210","shc":"2_OtherShare"};</script>';
+        Http::fake([$short => Http::response($html, 200)]);
+
+        $this->assertSame($short, (new SheinUrlResolver(new StoreUrlClassifier()))->resolve($short));
+        Http::assertSentCount(1);
+    }
+
+    public function test_onelink_resolves_matching_relative_cart_link(): void
+    {
+        $short = 'https://onelink.shein.com/58/6663yrqirv65?shc=2_RNBOXsQCBJ4';
+        $html = '<script>let deeplink="/cart/share/landing?group_id=876543210&shc=2_RNBOXsQCBJ4";</script>';
+        Http::fake([$short => Http::response($html, 200)]);
+
+        $resolved = (new SheinUrlResolver(new StoreUrlClassifier()))->resolve($short);
+        parse_str((string) parse_url($resolved, PHP_URL_QUERY), $query);
+        $this->assertSame('www.shein.com', parse_url($resolved, PHP_URL_HOST));
+        $this->assertSame('876543210', $query['group_id']);
+        Http::assertSentCount(1);
+    }
+
+    public function test_onelink_rejects_shareinfo_text_in_untrusted_input_value(): void
+    {
+        $short = 'https://onelink.shein.com/58/6663yrqirv65?shc=2_RNBOXsQCBJ4';
+        $html = '<input id="url" value="https://example.com/?shareInfo={&quot;group_id&quot;:&quot;876543210&quot;,&quot;shc&quot;:&quot;2_RNBOXsQCBJ4&quot;}">';
+        Http::fake([$short => Http::response($html, 200)]);
+
+        $this->assertSame($short, (new SheinUrlResolver(new StoreUrlClassifier()))->resolve($short));
+        Http::assertSentCount(1);
+    }
+
     public function test_non_cart_share_info_is_not_accepted(): void
     {
         $short = 'https://onelink.shein.com/58/6663yrqirv65?shc=2_RNBOXsQCBJ4';
