@@ -16,6 +16,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
       - name: Node worker syntax
         run: |
           node --check scripts/shein-shared-page-import.mjs
@@ -53,6 +56,11 @@ jobs:
           php -l tests/Unit/SheinUrlResolverTest.php
           php -l tests/static/shein-onelink-appjump-resolve-check.php
           php tests/static/shein-onelink-appjump-resolve-check.php
+
+      - name: Run real Laravel SHEIN resolver regression tests
+        run: |
+          composer install --no-interaction --prefer-dist --no-progress
+          php artisan test --filter=SheinUrlResolverTest
 
       - name: SHEIN onelink regional redirect normalization
         run: |
