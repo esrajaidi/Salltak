@@ -93,7 +93,10 @@ jobs:
           node --check scripts/shein-browser-doctor.mjs
           node --test tests/static/shein-windows-browser-runtime.test.mjs
           php -l app/Services/CartImport/Browser/SheinBrowserImporter.php
+          php -l app/Services/CartImport/Browser/SheinWebRuntimeDiagnostics.php
+          php -l app/Services/CartImport/Browser/SheinImportDiagnostics.php
           php -l app/Services/CartImport/Adapters/SheinShareAdapter.php
+          php artisan test --filter=SheinWebRuntimeDiagnosticsTest
 
       - name: SHEIN local PHP and browser timeout regression
         run: |

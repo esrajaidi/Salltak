@@ -330,18 +330,50 @@ class SheinBrowserImporter
 
         $decoded = json_decode(trim($result->output()), true);
         if (! is_array($decoded) && $result->exitCode() === 134) {
-            // 134 is commonly a process abort (e.g. SIGABRT). This is NOT
-            // a SHEIN empty cart, security challenge or invalid shared link.
-            // Never include raw Node/Chromium stderr in user-facing output.
+            // The worker terminated before returning JSON. The user's CLI
+            // smoke tests can pass even if php artisan serve cannot spawn the
+            // same Chromium process during a web request. Probe that exact
+            // web context once on LOCAL php artisan serve, never in production.
+            // Do not log raw stderr, worker input, cookie values or links.
+            $webSmoke = 'not_checked';
+            if (app()->environment('local') && PHP_SAPI === 'cli-server') {
+                try {
+                    $smoke = Process::path(base_path())
+                        ->timeout(12)
+                        ->run([
+                            (string) config('services.cart_import.shein_browser.node_binary', 'node'),
+                            'scripts/shein-browser-check.mjs',
+                        ]);
+                    $webSmoke = $smoke->exitCode() === 0
+                        && str_contains($smoke->output(), '[PASS] Playwright Chromium')
+                        ? 'passed' : 'failed';
+                } catch (\Throwable) {
+                    $webSmoke = 'failed';
+                }
+            }
+
+            $message = match ($webSmoke) {
+                'passed' => 'اختبار Chromium نجح حتى من طلب الموقع، لكن سكربت استيراد SHEIN نفسه توقف (exit 134). راجعي تشخيص runtime_abort_category وruntime_input_size_band وruntime_owner_session_present في سجل الاستيراد. لا تعيدي تثبيت المتصفح.',
+                'failed' => 'Chromium يشتغل من Terminal لكن يفشل عند تشغيله من php artisan serve (exit 134). جرّبي تشغيل سلتك محليًا من Apache داخل Laragon بدل PHP built-in server، ثم أعيدي الاختبار.',
+                default => 'توقف عامل Node/Chromium قبل الاستيراد (exit 134). راجعي سجلات تشخيص التشغيل؛ السلة ليست مؤكدة الفراغ.',
+            };
+
             return [
                 'ok' => false,
                 'status' => 'unavailable',
-                'message' => 'تعطّل تشغيل Node.js/Chromium على هذا الجهاز (exit 134) قبل فتح SHEIN. من Terminal داخل سلتك شغّلي node -v ثم npm run browser:smoke ثم npm run browser:doctor، وتحققي من مسار node.exe.',
+                'message' => $message,
                 'error' => 'browser_runtime_aborted',
                 'exit_code' => 134,
                 'items' => [],
                 'payloads' => [],
-                'meta' => ['worker_aborted' => true],
+                'meta' => [
+                    'worker_aborted' => true,
+                    'runtime_abort_category' => SheinWebRuntimeDiagnostics::errorCategory($result->errorOutput()),
+                    'runtime_web_smoke' => $webSmoke,
+                    'runtime_input_size_band' => SheinWebRuntimeDiagnostics::inputSizeBand(strlen($input ?: '')),
+                    'runtime_owner_session_present' => $accountState !== null,
+                    'runtime_sapi' => SheinWebRuntimeDiagnostics::sapi(),
+                ],
             ];
         }
         if (! is_array($decoded)) {

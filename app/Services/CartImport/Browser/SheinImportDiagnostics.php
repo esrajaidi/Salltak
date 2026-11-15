@@ -83,6 +83,20 @@ final class SheinImportDiagnostics
             'share_response_count' => $count($responseClasses['share'] ?? 0),
             'other_response_count' => $count($responseClasses['other'] ?? 0),
             'duration_ms' => max(0, min(600_000, $durationMs)),
+            'runtime_abort_category' => in_array(($meta['runtime_abort_category'] ?? ''), [
+                'no_stderr', 'module_unavailable', 'memory', 'thread_resource',
+                'permissions', 'native_abort', 'unclassified',
+            ], true) ? $meta['runtime_abort_category'] : 'not_applicable',
+            'runtime_web_smoke' => in_array(($meta['runtime_web_smoke'] ?? ''), [
+                'passed', 'failed', 'not_checked',
+            ], true) ? $meta['runtime_web_smoke'] : 'not_applicable',
+            'runtime_input_size_band' => in_array(($meta['runtime_input_size_band'] ?? ''), [
+                'small', 'medium', 'large',
+            ], true) ? $meta['runtime_input_size_band'] : 'not_applicable',
+            'runtime_owner_session_present' => ($meta['runtime_owner_session_present'] ?? false) === true,
+            'runtime_sapi' => in_array(($meta['runtime_sapi'] ?? ''), [
+                'cli', 'php_builtin_server', 'web_server',
+            ], true) ? $meta['runtime_sapi'] : 'unknown',
             'exit_code' => is_int($exitCode) && $exitCode >= 0 && $exitCode <= 255 ? $exitCode : null,
         ];
     }

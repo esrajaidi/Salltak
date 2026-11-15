@@ -13,7 +13,11 @@ test('a Node runtime abort must not be interpreted as an empty SHEIN cart', () =
   assert.match(importer, /'worker_aborted' => true/);
   assert.match(importer, /if \(\(\$shared\['meta'\]\['worker_aborted'\] \?\? false\) === true\) \{\s*return \$shared;/);
   assert.match(adapter, /\$browser\['meta'\]\['worker_aborted'\]/);
-  assert.match(adapter, /Node\.js.*Chromium.*Windows/);
+  assert.match(adapter, /\$browser\['message'\]/);
+  assert.match(importer, /runtime_web_smoke/);
+  assert.match(importer, /PHP_SAPI === 'cli-server'/);
+  assert.match(importer, /app\(\)->environment\('local'\)/);
+  assert.match(importer, /'scripts\/shein-browser-check\.mjs'/);
 });
 
 test('Windows doctor checks Chromium without SHEIN or leaking browser profiles', () => {
