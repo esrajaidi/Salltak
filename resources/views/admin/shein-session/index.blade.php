@@ -4,7 +4,7 @@
 <div class="admin-page-header mb-4">
     <div class="small text-primary fw-bold mb-1">إعدادات الاستيراد</div>
     <h1 class="page-heading">جلسة حساب الشراء في SHEIN</h1>
-    <p class="page-subtitle">إدارة جلسة الحساب الخاصة بالشراء، للاختبار على Mac ثم استعمالها اختياريًا في سلتك المحلية أو أونلاين.</p>
+    <p class="page-subtitle">إدارة جلسة الحساب الخاصة بالشراء، للاختبار على Windows أو Mac ثم استعمالها اختياريًا في سلتك المحلية أو أونلاين.</p>
 </div>
 
 <div class="alert alert-warning border-0 p-3 mb-4" role="alert">
@@ -37,7 +37,7 @@
     <div class="col-xl-6">
         <section class="surface-card admin-panel p-3 p-md-4 h-100">
             <h2 class="h5 fw-bold mb-3">1. تسجيل الدخول وحفظ الجلسة محليًا</h2>
-            <p class="text-secondary small">على Mac، افتحي Terminal داخل مجلد سلتك وشغّلي الأمر التالي. المتصفح يفتح https://www.shein.com لتسجيل الدخول يدويًا. صفحات المنتجات في سلتك تفتح نفس الموقع، بينما روابط مشاركة السلة قد تستخدم m.shein.com تقنيًا. إذا غيّر SHEIN الرابط تلقائيًا، تأكدي أنك دخلتي نفس حساب الشراء قبل حفظ الجلسة. بعد التأكد من تسجيل الدخول، ارجعي للـTerminal واضغطي Enter.</p>
+            <p class="text-secondary small">على Windows في Laragon Terminal، أو على Mac في Terminal، افتحي مجلد سلتك وشغّلي الأمر التالي. المتصفح يفتح https://www.shein.com لتسجيل الدخول يدويًا. صفحات المنتجات في سلتك تفتح نفس الموقع، بينما روابط مشاركة السلة قد تستخدم m.shein.com تقنيًا. إذا غيّر SHEIN الرابط تلقائيًا، تأكدي أنك دخلتي نفس حساب الشراء قبل حفظ الجلسة. بعد التأكد من تسجيل الدخول، ارجعي للـTerminal واضغطي Enter.</p>
             <div class="bg-light border rounded-3 p-3 mb-3 text-start" dir="ltr"><code>npm run shein:login</code></div>
             <div class="small mb-3">الملف يتخزن محليًا هنا (لا ترسليه لأي شخص):</div>
             <div class="bg-light border rounded-3 p-3 text-start text-break" dir="ltr"><code>storage/app/shein-session/session.json</code></div>
@@ -160,6 +160,44 @@
                         </div>
                         <p class="small text-danger mb-0 mt-2"><strong>تنبيه:</strong> هذه أرقام محتملة من الصفحة، وليست سعرًا مؤكدًا لنفس اللون والمقاس. تحميل Cookies لا يثبت وحده تسجيل الدخول؛ قارني نفس المنتج في حسابك قبل أي اعتماد تجاري.</p>
                     @endif
+                </div>
+            @endif
+            <hr class="my-4">
+            <h2 class="h5 fw-bold mb-3">فحص جاهزية سلة حساب الشراء للتسعير الآلي</h2>
+            <p class="small text-secondary">
+                هذه الخطوة تفحص سلة حساب SHEIN المسجّل بدون إدخال أسعار يدويًا وبدون إضافة أو حذف منتجات.
+                نحتاج نعرف هل السلة الأصلية فيها منتجات، وهل يظهر الكوبون ومنطقة الإمارات. لا يتم فتح الدفع أو تأكيد أي طلب.
+            </p>
+            <form method="POST" action="{{ route('admin.shein-session.cart-readiness') }}" class="d-grid gap-2">
+                @csrf
+                <button type="submit" class="btn btn-outline-primary" @disabled(!$connection['connected'])>فحص سلة حساب SHEIN تلقائيًا — قراءة فقط</button>
+                <div class="small text-secondary">عند وجود منتجات مسبقًا، لن ندمج معها سلة عميل آخر من غير آلية استعادة مؤكدة.</div>
+            </form>
+            @if(session()->has('shein_cart_readiness_result'))
+                @php($readiness = session('shein_cart_readiness_result'))
+                @php($readinessLabels = [
+                    'no_owner_session' => 'جلسة SHEIN غير محفوظة أو منتهية',
+                    'redirected_or_non_cart_page' => 'المتصفح لم يصل لصفحة سلة www.shein.com',
+                    'access_limited' => 'SHEIN طلب تحققًا أو قيّد الوصول',
+                    'login_required' => 'يبدو أن حساب SHEIN يحتاج تسجيل الدخول مجددًا',
+                    'empty_cart_observed' => 'تظهر السلة فارغة، يمكن دراسة مزامنتها مع الحفاظ على الحالة',
+                    'existing_cart_must_be_preserved' => 'سلة حساب الشراء فيها منتجات يجب الحفاظ عليها وعدم خلطها بمنتجات العملاء',
+                    'cart_state_unclear' => 'صفحة السلة ظهرت لكن بياناتها غير كافية للتأكد من حالتها',
+                    'probe_failed' => 'تعذر فحص سلة الحساب عبر Chromium',
+                    'probe_unavailable' => 'أداة فحص سلة الحساب غير متوفرة',
+                ])
+                <div class="border rounded-3 p-3 mt-3" role="status">
+                    <strong>نتيجة فحص سلة الحساب:</strong>
+                    <div class="mt-1">{{ $readinessLabels[$readiness['status'] ?? ''] ?? 'تعذر تحديد حالة الحساب' }}</div>
+                    <div class="small text-secondary mt-2">
+                        عدد المنتجات الظاهر إن وُجد: {{ $readiness['cart_item_count_visible'] ?? 'غير معروف' }} •
+                        إشارة لخصم الكوبون: {{ !empty($readiness['coupon_label_seen']) ? 'موجودة' : 'لم تثبت' }} •
+                        دليل الإمارات: {{ !empty($readiness['ae_region_visible']) ? 'ظاهر' : 'لم يثبت' }} •
+                        مؤشر الدولار: {{ !empty($readiness['usd_currency_visible']) ? 'ظاهر' : 'لم يثبت' }}
+                    </div>
+                    <div class="small mt-2 text-warning-emphasis">
+                        هذا فحص للجاهزية فقط، وليس إثبات تسجيل الدخول أو السعر النهائي بعد الكوبون. لم يغيّر المنتجات أو الطلبات.
+                    </div>
                 </div>
             @endif
             <hr class="my-4">

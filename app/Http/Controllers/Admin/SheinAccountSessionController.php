@@ -172,6 +172,66 @@ class SheinAccountSessionController extends Controller
         ]);
     }
 
+    /**
+     * Read-only preflight for future automated purchaser-cart quoting.
+     * Never clicks Add to Cart, applies a coupon or visits payment.
+     */
+    public function probeCartReadiness()
+    {
+        $state = $this->vault->read(true);
+        if ($state === null) {
+            return back()->with('shein_cart_readiness_result', [
+                'status' => 'no_owner_session',
+            ]);
+        }
+
+        $worker = base_path('scripts/shein-owner-cart-readiness.mjs');
+        if (! is_file($worker)) {
+            return back()->with('shein_cart_readiness_result', [
+                'status' => 'probe_unavailable',
+            ]);
+        }
+
+        if (function_exists('set_time_limit')) {
+            set_time_limit(60);
+        }
+
+        try {
+            $result = Process::path(base_path())
+                ->timeout(40)
+                ->input(json_encode(['accountSession' => $state], JSON_THROW_ON_ERROR))
+                ->run([
+                    (string) config('services.cart_import.shein_browser.node_binary', 'node'),
+                    $worker,
+                ]);
+            $decoded = json_decode($result->output(), true);
+        } catch (\Throwable) {
+            $decoded = null;
+        }
+
+        // Only return safe, enum-constrained fields. Never return raw process
+        // errors or page text because the stored session is a bearer secret.
+        $statuses = [
+            'no_owner_session', 'redirected_or_non_cart_page',
+            'access_limited', 'login_required', 'empty_cart_observed',
+            'existing_cart_must_be_preserved', 'cart_state_unclear',
+            'probe_failed', 'probe_unavailable',
+        ];
+        $status = is_array($decoded) ? ($decoded['status'] ?? '') : '';
+        $status = in_array($status, $statuses, true) ? $status : 'probe_failed';
+        $count = is_array($decoded) ? ($decoded['cart_item_count_visible'] ?? null) : null;
+
+        return back()->with('shein_cart_readiness_result', [
+            'status' => $status,
+            'cart_item_count_visible' => is_int($count) && $count >= 0 && $count <= 1000 ? $count : null,
+            'coupon_label_seen' => ($decoded['coupon_label_seen'] ?? false) === true,
+            'ae_region_visible' => ($decoded['ae_region_visible'] ?? false) === true,
+            'usd_currency_visible' => ($decoded['usd_currency_visible'] ?? false) === true,
+            'account_cart_modified' => false,
+            'final_checkout_price_verified' => false,
+        ]);
+    }
+
     public function enable(Request $request)
     {
         $request->validate(['confirm' => ['required','accepted']]);
