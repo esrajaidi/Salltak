@@ -100,6 +100,13 @@ class CartController extends Controller
 
     private function extractSharedUrl(string $value): ?string
     {
+        // Customers and the admin session test accept the same AR/EN share
+        // messages, HTML entities and invisible messaging-app separators.
+        try {
+            return \App\Services\CartImport\SheinSharedCartInput::extract($value);
+        } catch (\InvalidArgumentException) {
+            // Preserve generic product/store URLs supported by this page.
+        }
         $clean = preg_replace('/[\x{200B}\x{200C}\x{200D}\x{2060}\x{FEFF}]/u', '', trim($value)) ?? trim($value);
 
         if (! preg_match('~https://[^\s<>"\']+~iu', $clean, $matches)) {

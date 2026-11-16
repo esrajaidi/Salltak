@@ -69,6 +69,12 @@ final class SheinImportDiagnostics
             'share_group_id_present' => ($meta['share_group_id_present'] ?? false) === true,
             'share_token_present' => ($meta['share_token_present'] ?? false) === true,
             'direct_bff_attempted' => ($meta['direct_bff_attempted'] ?? false) === true,
+            'direct_bff_error_category' => in_array(($meta['direct_bff_error_category'] ?? ''), [
+                'none', 'timeout', 'dns', 'tls', 'connection_reset', 'connection_refused', 'context_closed', 'browser_network',
+            ], true) ? $meta['direct_bff_error_category'] : 'unknown',
+            'worker_stage' => in_array(($meta['worker_stage'] ?? ''), [
+                'launch', 'session', 'resolve', 'navigation', 'responses', 'cart_request', 'extract',
+            ], true) ? $meta['worker_stage'] : 'unknown',
             'direct_bff_http_status' => $count($meta['direct_bff_http_status'] ?? 0),
             'direct_bff_outcome' => in_array(($meta['direct_bff_outcome'] ?? ''), [
                 'not_attempted', 'missing_group_id', 'bound_share_response',

@@ -5,6 +5,10 @@ import { chromium } from 'playwright-chromium';
 import { summarizeShareEvidence } from './shein-share-evidence.mjs';
 import { parseSheinShareBff } from './shein-share-bff-items.mjs';
 import { PRICING_COUNTRY, trustedShareHost, uaeSharedLandingUrl, uaeShareRequest } from './shein-ae-pricing.mjs';
+import { landingFromOnelinkHtml } from './shein-onelink-landing.mjs';
+import { requestFailureCategory } from './shein-request-failure.mjs';
+import { boundedWait } from './shein-bounded-wait.mjs';
+import { storefrontShareRequest } from './shein-storefront-request.mjs';
 
 const MAX_RESPONSE_BYTES = 2_500_000;
 const MAX_ITEMS = 60;
@@ -24,7 +28,10 @@ function shareContextFor(originalUrl, currentUrl) {
   return { groupId: original.groupId || current.groupId || '', shc: original.shc || current.shc || '' };
 }
 
+let emitted = false;
 function out(payload, code = 0) {
+  if (emitted) return;
+  emitted = true;
   process.stdout.write(JSON.stringify(payload));
   process.exitCode = code;
 }
@@ -232,6 +239,15 @@ if (!allowed(targetUrl)) {
   fs.mkdirSync(profileDir, { recursive:true });
 
   let context;
+  let accountSessionApplied = false;
+  let workerStage = 'launch';
+  const watchdog = setTimeout(() => {
+    out({ ok:false, status:'timeout', items:[], payloads:[],
+      message:'انتهت مهلة قراءة سلة SHEIN أثناء معالجة الطلب. لم تُعتمد أي أسعار.',
+      meta:{ worker_stage:workerStage, account_session_applied:accountSessionApplied } });
+    // Return JSON before the PHP process deadline, even if browser shutdown hangs.
+    boundedWait(context?.close(), 1500, null).finally(() => process.exit(0));
+  }, Math.max(5000, Math.min(55000, Number(cfg.workerBudgetMs || 55000))));
   try {
     context = await chromium.launchPersistentContext(profileDir, {
       headless: cfg.headless !== false,
@@ -247,12 +263,13 @@ if (!allowed(targetUrl)) {
         ? 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'
         : 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 Version/18.7 Mobile/15E148 Safari/604.1')),
       args: ['--disable-dev-shm-usage'],
+      timeout: Math.min(15000, timeoutMs),
     });
 
     // Rehydrate the owner's manually authenticated browser state only when
     // the admin explicitly enabled it in the encrypted vault. Never return it
     // to the caller, store it in logs, or send it to another origin.
-    let accountSessionApplied = false;
+    workerStage = 'session';
     const stored = cfg.accountSession;
     if (stored && Array.isArray(stored.cookies) && stored.cookies.length > 0) {
       const safeDomain = raw => {
@@ -331,13 +348,15 @@ if (!allowed(targetUrl)) {
     };
 
     page.on('response', response => {
+      if (responseTasks.length >= 120 || emitted) return;
       const task = (async () => {
         try {
           const responseUrl = response.url();
           if (!sheinUrl(responseUrl)) return;
           const contentType = String(response.headers()['content-type'] || '').toLowerCase();
           if (!contentType.includes('json') && !contentType.includes('text')) return;
-          const text = await response.text();
+          if (contentType.includes('event-stream')) return;
+          const text = await boundedWait(response.text(), 1500, '');
           if (!text || text.length > MAX_RESPONSE_BYTES) return;
           let decoded;
           try { decoded = JSON.parse(text); } catch { return; }
@@ -367,8 +386,25 @@ if (!allowed(targetUrl)) {
       responseTasks.push(task);
     });
 
-    const directAeLanding = uaeSharedLandingUrl(targetUrl, '', shareHost);
-    await page.goto(directAeLanding || targetUrl, { waitUntil:'domcontentloaded', timeout:timeoutMs });
+    workerStage = 'resolve';
+    let directAeLanding = uaeSharedLandingUrl(targetUrl, '', shareHost);
+    // Admin tests call this worker directly, without Laravel's URL resolver.
+    // Resolve the static deeplink before OneLink's script redirects to home.
+    if (!directAeLanding && new URL(targetUrl).hostname === 'onelink.shein.com') {
+      try {
+        const shortResponse = await context.request.get(targetUrl, {
+          timeout: Math.min(10_000, timeoutMs), maxRedirects: 0,
+        });
+        try {
+          if (shortResponse.ok()) {
+            const landing = landingFromOnelinkHtml(await shortResponse.text(), targetUrl);
+            if (landing) directAeLanding = uaeSharedLandingUrl(targetUrl, landing, shareHost);
+          }
+        } finally { await shortResponse.dispose(); }
+      } catch { /* Existing browser redirect resolution remains the fallback. */ }
+    }
+    workerStage = 'navigation';
+    await page.goto(directAeLanding || targetUrl, { waitUntil:'domcontentloaded', timeout:Math.min(20000, timeoutMs) });
     // A short SHEIN onelink can hide the groupId until the redirect resolves.
     // Once resolved, navigate to the UAE share landing without replacing shc.
     if (!directAeLanding) {
@@ -377,11 +413,12 @@ if (!allowed(targetUrl)) {
         await page.goto(redirectedAeLanding, { waitUntil:'domcontentloaded', timeout:timeoutMs });
       }
     }
-    try { await page.waitForLoadState('networkidle', { timeout:Math.min(12_000, timeoutMs) }); } catch {}
+    workerStage = 'responses';
+    try { await page.waitForLoadState('networkidle', { timeout:Math.min(3000, timeoutMs) }); } catch {}
     await page.waitForTimeout(2600);
-    await Promise.allSettled(responseTasks);
+    await boundedWait(Promise.allSettled([...responseTasks]), 2000, []);
 
-    const bodyText = await page.locator('body').innerText().catch(() => '');
+    const bodyText = await page.locator('body').innerText({ timeout:1500 }).catch(() => '');
     const finalUrl = page.url();
 
     // The landing page can redirect www -> m, while the requested shared
@@ -390,18 +427,35 @@ if (!allowed(targetUrl)) {
     // Playwright's context.request shares the Chromium context's cookies, but
     // isn't blocked by a cross-origin browser page's CORS restrictions.
     // This does NOT authenticate the account or bypass SHEIN access controls.
-    const targetShare = shareContextFor(targetUrl, finalUrl);
+    const targetShare = shareContextFor(targetUrl, directAeLanding || finalUrl);
     const directBffAttempted = !bffAePriceVerified && Boolean(targetShare.groupId) && sheinUrl(finalUrl);
     let directBffHttpStatus = 0;
     let directBffOutcome = targetShare.groupId ? 'not_attempted' : 'missing_group_id';
+    let directBffErrorCategory = 'none';
     if (directBffAttempted) {
+      workerStage = 'cart_request';
       try {
         const request = uaeShareRequest(finalUrl, targetShare.groupId, shareHost);
         if (!request) throw new Error('invalid_share_context');
         const { endpoint, body } = request;
         // Never forward credentials to a third party or use recommendation
         // APIs. This endpoint is selected only by the strict www/m host helper.
-        const response = await context.request.post(endpoint, {
+        let response;
+        if (new URL(page.url()).origin === new URL(endpoint).origin) {
+          const quote = await page.evaluate(storefrontShareRequest, {
+            endpoint, body, timeoutMs: Math.min(10000, timeoutMs), maxBytes: MAX_RESPONSE_BYTES,
+          });
+          if (quote.error) {
+            directBffErrorCategory = quote.error === 'timeout' ? 'timeout' : 'browser_network';
+            throw new Error('storefront_request_failed');
+          }
+          response = {
+            status: () => quote.status,
+            text: async () => quote.oversized ? ' '.repeat(MAX_RESPONSE_BYTES + 1) : quote.text,
+            url: () => quote.url,
+          };
+        } else {
+          response = await context.request.post(endpoint, {
           data: body,
           headers: {
             'accept': 'application/json, text/plain, */*',
@@ -414,7 +468,8 @@ if (!allowed(targetUrl)) {
           timeout: Math.min(10_000, timeoutMs),
           maxRedirects: 0,
           failOnStatusCode: false,
-        });
+          });
+        }
         directBffHttpStatus = response.status();
         directBffOutcome = 'http_error';
         if (directBffHttpStatus >= 200 && directBffHttpStatus < 300) {
@@ -437,14 +492,16 @@ if (!allowed(targetUrl)) {
             }
           }
         }
-      } catch {
+      } catch (error) {
         // Only report a bounded diagnostic enum; never leak network errors,
         // URLs, share tokens, full response bodies or cookie material.
         directBffOutcome = 'request_failed';
+        if (directBffErrorCategory === 'none') directBffErrorCategory = requestFailureCategory(error);
       }
-      await Promise.allSettled(responseTasks);
+      await boundedWait(Promise.allSettled([...responseTasks]), 2000, []);
     }
 
+    workerStage = 'extract';
     const domSnapshot = await page.evaluate(() => {
       const abs = value => {
         try { return new URL(String(value || ''), location.href).href; } catch { return String(value || ''); }
@@ -690,6 +747,8 @@ if (!allowed(targetUrl)) {
       direct_bff_attempted: directBffAttempted,
       direct_bff_http_status: directBffHttpStatus,
       direct_bff_outcome: directBffOutcome,
+      direct_bff_error_category: directBffErrorCategory,
+      worker_stage: workerStage,
       share_response_seen: shareEvidence.shareResponseSeen,
       share_bound_candidate_count: shareEvidence.shareBoundCandidateCount,
       response_class_counts: shareEvidence.responseClassCounts,
@@ -854,8 +913,18 @@ if (!allowed(targetUrl)) {
       }
     }
   } catch (error) {
-    out({ ok:false, status:'failed', message:String(error?.message || error || 'Shared page import failed'), items:[], payloads:[] }, 1);
+    const category = requestFailureCategory(error);
+    out({ ok:false, status:category === 'timeout' ? 'timeout' : 'failed',
+      message:category === 'context_closed' ? 'أُغلق متصفح الاستيراد قبل اكتمال قراءة السلة.' : 'تعذر إكمال قراءة سلة SHEIN في هذه المحاولة.',
+      items:[], payloads:[], meta:{ worker_stage:workerStage, account_session_applied:accountSessionApplied, direct_bff_error_category:category } }, 1);
   } finally {
-    if (context) await context.close().catch(() => {});
+    // A browser with dangling handles must not hold the emitted JSON hostage
+    // until PHP kills the entire process. Flush stdout before forced cleanup.
+    const closed = !context || await boundedWait(context.close().then(() => true), 1500, false);
+    if (!closed) {
+      await new Promise(resolve => process.stdout.write('', resolve));
+      process.exit(process.exitCode || 0);
+    }
+    clearTimeout(watchdog);
   }
 }

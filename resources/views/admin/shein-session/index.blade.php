@@ -90,6 +90,12 @@
                     <div>سعر أول منتج: <strong>{{ $test['first_price_usd'] !== null ? number_format((float)$test['first_price_usd'],2).' $' : 'لم يتوفر' }}</strong></div>
                     <div>تطبيق الجلسة: <strong>{{ $test['account_session_applied'] ? 'نعم، تم إرسال الجلسة إلى المتصفح' : 'لا' }}</strong></div>
                     <div>دليل سعر الإمارات: <strong>{{ $test['ae_price_verified'] ? 'متوفر' : 'غير مؤكد' }}</strong></div>
+                    @if(!empty($test['request_failure']))
+                        <div>سبب تعذر طلب السلة: <strong>{{ $test['request_failure'] }}</strong></div>
+                    @endif
+                    @if(!empty($test['worker_stage']))
+                        <div>مرحلة الاستيراد: <strong>{{ $test['worker_stage'] }}</strong></div>
+                    @endif
                     <div class="small mt-2">إرسال الجلسة للمتصفح لا يثبت وحده استمرار تسجيل الدخول. قارني السعر يدويًا في حسابك قبل التفعيل.</div>
                 </div>
             @endif
@@ -186,6 +192,8 @@
                 @php($readinessLabels = [
                     'no_owner_session' => 'جلسة SHEIN غير محفوظة أو منتهية',
                     'redirected_or_non_cart_page' => 'المتصفح لم يصل لصفحة سلة www.shein.com',
+                    'cart_page_unavailable' => 'وصل المتصفح إلى رابط السلة، لكن SHEIN عرضت صفحة خطأ بدل محتوياتها',
+                    'probe_timeout' => 'انتهت مهلة فحص سلة الحساب؛ لم يُعتمد أي سعر',
                     'access_limited' => 'SHEIN طلب تحققًا أو قيّد الوصول',
                     'login_required' => 'يبدو أن حساب SHEIN يحتاج تسجيل الدخول مجددًا',
                     'empty_cart_observed' => 'تظهر السلة فارغة، يمكن دراسة مزامنتها مع الحفاظ على الحالة',
@@ -205,6 +213,21 @@
                     </div>
                     <div class="small mt-2 text-warning-emphasis">
                         هذا فحص للجاهزية فقط، وليس إثبات تسجيل الدخول أو السعر النهائي بعد الكوبون. لم يغيّر المنتجات أو الطلبات.
+                    </div>
+                    <div class="mt-3">
+                        <strong>نماذج أسعار من صفوف سلة الحساب — للتشخيص فقط</strong>
+                        <div class="small text-secondary">هذه ملاحظات من الصفحة وليست أسعار شراء معتمدة. لا تتضمن بيانات الدخول أو العنوان.</div>
+                        @forelse(($readiness['price_samples'] ?? []) as $sample)
+                            <div class="border rounded p-2 mt-2 small">
+                                <div>رقم المنتج: <b>{{ $sample['product_id'] }}</b> • رمز المقاس: {{ $sample['sku'] ?: 'غير ظاهر' }}</div>
+                                @if(!empty($sample['option_text']))<div>الخيارات الظاهرة: {{ $sample['option_text'] }}</div>@endif
+                                @foreach($sample['prices'] as $price)
+                                    <div dir="ltr">{{ $price['text'] }} <span class="text-secondary">({{ $price['marker'] }})</span></div>
+                                @endforeach
+                            </div>
+                        @empty
+                            <div class="small mt-2">لم تُلتقط صفوف أسعار واضحة في هذا الفحص؛ لن تُستخدم أسعار التخمين.</div>
+                        @endforelse
                     </div>
                 </div>
             @endif

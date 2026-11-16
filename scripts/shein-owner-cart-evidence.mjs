@@ -4,6 +4,8 @@
  * No amount visible on a cart page is automatically an authenticated,
  * coupon-adjusted per-SKU purchase price.
  */
+import { ownerCartUrl } from './shein-owner-cart-navigation.mjs';
+
 export function ownerCartReadiness({
   finalUrl = '', httpStatus = 0, visibleText = '',
   candidateProductCards = 0, sessionSupplied = false,
@@ -15,12 +17,13 @@ export function ownerCartReadiness({
     const url = new URL(String(finalUrl || ''));
     trustedHost = url.protocol === 'https:' && url.hostname === 'www.shein.com'
       && !url.username && !url.password && !url.port;
-    cartPath = /(?:^|\/)cart(?:\/|$)/i.test(url.pathname);
+    cartPath = ownerCartUrl(url.href) !== '';
   } catch { /* invalid or redirected navigation */ }
 
   const statusCode = Number(httpStatus) || 0;
   const challenge = /(?:verify you are human|security verification|unusual traffic|captcha|access denied|robot check|تحقق أمني|أثبت أنك إنسان)/i.test(text);
   const loginGate = /(?:sign in to view your cart|please log in to continue|sign in to your account to continue|تسجيل الدخول لعرض سلة)/i.test(text);
+  const pageUnavailable = /(?:\bOOPS\b|page not found|الصفحة غير موجودة)/i.test(text) || statusCode >= 400;
   const match = text.match(/(?:^|\n|\s)(?:Cart|All Items|Bag|سلة التسوق|السلة|كل المنتجات)\s*[\(\uFF08]\s*(\d{1,4})\s*[\)\uFF09]/i);
   const count = match ? Math.min(1000, Number(match[1])) : null;
   const emptyHint = /(?:your cart is empty|your bag is empty|your shopping bag is empty|no items in (?:your )?cart|سلتك فارغة|سلة التسوق فارغة|السلة فارغة)/i.test(text);
@@ -29,6 +32,7 @@ export function ownerCartReadiness({
   const usdEvidence = /(?:USD|US\$|\$\s*\d)/i.test(text);
   const cardCandidates = Math.max(0, Math.min(1000, Number(candidateProductCards) || 0));
   const cartEmptyProven = trustedHost && cartPath && emptyHint
+    && !loginGate && !challenge && !pageUnavailable && statusCode >= 200 && statusCode < 300
     && cardCandidates === 0 && (count === null || count === 0);
   const hasItems = count !== null ? count > 0 : cardCandidates > 0;
 
@@ -37,6 +41,7 @@ export function ownerCartReadiness({
   else if (!trustedHost || !cartPath) status = 'redirected_or_non_cart_page';
   else if (statusCode === 403 || statusCode === 429 || challenge) status = 'access_limited';
   else if (loginGate) status = 'login_required';
+  else if (pageUnavailable) status = 'cart_page_unavailable';
   else if (cartEmptyProven) status = 'empty_cart_observed';
   else if (hasItems) status = 'existing_cart_must_be_preserved';
 

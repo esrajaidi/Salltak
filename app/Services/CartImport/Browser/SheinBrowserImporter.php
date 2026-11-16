@@ -193,6 +193,12 @@ class SheinBrowserImporter
                 return $shared;
             }
 
+            // The legacy desktop retry uses a separate parser and can hide
+            // the www request failure behind a second timeout. In www-only
+            // mode return the authenticated primary attempt unchanged.
+            if ($wwwOnly && $this->isSharedCartUrl($url)) {
+                return $shared;
+            }
             $shouldRetryShared = $this->isSharedCartUrl($url)
                 || in_array((string) ($shared['status'] ?? ''), ['missing_usd_prices', 'shared_page_unreadable', 'not_shared_page'], true);
 
@@ -316,6 +322,7 @@ class SheinBrowserImporter
         $input = json_encode([
             'url' => $url,
             'timeoutMs' => $browserTimeoutMs,
+            'workerBudgetMs' => max(5000, (min($workerSeconds, max(20, (int) config('services.cart_import.shein_browser.process_timeout', 110))) - 3) * 1000),
             'headless' => (bool) config('services.cart_import.shein_browser.headless', true),
             'profileDir' => $profileDir,
             'manualChallengeWaitMs' => max(0, (int) config('services.cart_import.shein_browser.manual_challenge_wait_ms', 60_000)),
