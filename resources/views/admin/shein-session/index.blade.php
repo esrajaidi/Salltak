@@ -214,6 +214,21 @@
                     <div class="small mt-2 text-warning-emphasis">
                         هذا فحص للجاهزية فقط، وليس إثبات تسجيل الدخول أو السعر النهائي بعد الكوبون. لم يغيّر المنتجات أو الطلبات.
                     </div>
+                    <div class="mt-3">
+                        <strong>نماذج أسعار من صفوف سلة الحساب — للتشخيص فقط</strong>
+                        <div class="small text-secondary">هذه ملاحظات من الصفحة وليست أسعار شراء معتمدة. لا تتضمن بيانات الدخول أو العنوان.</div>
+                        @forelse(($readiness['price_samples'] ?? []) as $sample)
+                            <div class="border rounded p-2 mt-2 small">
+                                <div>رقم المنتج: <b>{{ $sample['product_id'] }}</b> • رمز المقاس: {{ $sample['sku'] ?: 'غير ظاهر' }}</div>
+                                @if(!empty($sample['option_text']))<div>الخيارات الظاهرة: {{ $sample['option_text'] }}</div>@endif
+                                @foreach($sample['prices'] as $price)
+                                    <div dir="ltr">{{ $price['text'] }} <span class="text-secondary">({{ $price['marker'] }})</span></div>
+                                @endforeach
+                            </div>
+                        @empty
+                            <div class="small mt-2">لم تُلتقط صفوف أسعار واضحة في هذا الفحص؛ لن تُستخدم أسعار التخمين.</div>
+                        @endforelse
+                    </div>
                 </div>
             @endif
             <hr class="my-4">

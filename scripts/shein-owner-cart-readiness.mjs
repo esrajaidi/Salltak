@@ -10,6 +10,7 @@ import { chromium } from 'playwright-chromium';
 import { ownerCartReadiness } from './shein-owner-cart-evidence.mjs';
 import { ownerCartUrl } from './shein-owner-cart-navigation.mjs';
 import { boundedWait } from './shein-bounded-wait.mjs';
+import { collectOwnerPriceSamples, sanitizeOwnerPriceSamples } from './shein-owner-price-samples.mjs';
 
 async function readInput() {
   let raw = '';
@@ -94,13 +95,16 @@ try {
       }).length;
       return { text, candidates: Math.min(1000, visibleCartCards) };
     });
-    emit({ ...ownerCartReadiness({
+    const readiness = ownerCartReadiness({
       finalUrl: page.url(),
       httpStatus: response?.status() || 0,
       visibleText: evidence.text,
       candidateProductCards: evidence.candidates,
       sessionSupplied: true,
-    }), navigation_stage:stage });
+    });
+    const priceSamples = ['existing_cart_must_be_preserved', 'cart_state_unclear'].includes(readiness.status)
+      ? sanitizeOwnerPriceSamples(await boundedWait(page.evaluate(collectOwnerPriceSamples), 2000, [])) : [];
+    emit({ ...readiness, navigation_stage:stage, price_samples:priceSamples });
     await boundedWait(context.close(), 1000, null);
   }
 } catch {

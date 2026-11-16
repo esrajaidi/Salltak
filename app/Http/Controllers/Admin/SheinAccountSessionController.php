@@ -245,10 +245,28 @@ class SheinAccountSessionController extends Controller
         $status = is_array($decoded) ? ($decoded['status'] ?? '') : '';
         $status = in_array($status, $statuses, true) ? $status : 'probe_failed';
         $count = is_array($decoded) ? ($decoded['cart_item_count_visible'] ?? null) : null;
+        $samples = [];
+        foreach (array_slice(is_array($decoded['price_samples'] ?? null) ? $decoded['price_samples'] : [], 0, 3) as $sample) {
+            if (! is_array($sample) || ! preg_match('/^\d{4,20}$/D', (string) ($sample['product_id'] ?? ''))) continue;
+            $prices = [];
+            foreach (array_slice(is_array($sample['prices'] ?? null) ? $sample['prices'] : [], 0, 6) as $price) {
+                $text = is_array($price) && is_string($price['text'] ?? null) ? $price['text'] : '';
+                if (strlen($text) > 150 || preg_match('/[<>@]/', $text)
+                    || ! preg_match('/(?:US\$|USD|AED|\$|د\.إ)\s*\d/iu', $text)) continue;
+                $prices[] = ['text' => $text, 'marker' => substr(preg_replace('/[^A-Za-z0-9_ -]/', '', (string) ($price['marker'] ?? '')), 0, 120)];
+            }
+            $samples[] = [
+                'product_id' => (string) $sample['product_id'],
+                'sku' => preg_match('/^[A-Za-z0-9_-]{1,120}$/D', (string) ($sample['sku'] ?? '')) ? (string) $sample['sku'] : '',
+                'option_text' => mb_substr(is_string($sample['option_text'] ?? null) ? $sample['option_text'] : '', 0, 80),
+                'prices' => $prices,
+            ];
+        }
 
         return back()->with('shein_cart_readiness_result', [
             'status' => $status,
             'cart_item_count_visible' => is_int($count) && $count >= 0 && $count <= 1000 ? $count : null,
+            'price_samples' => $samples,
             'coupon_label_seen' => ($decoded['coupon_label_seen'] ?? false) === true,
             'ae_region_visible' => ($decoded['ae_region_visible'] ?? false) === true,
             'usd_currency_visible' => ($decoded['usd_currency_visible'] ?? false) === true,
