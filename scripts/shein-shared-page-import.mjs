@@ -5,6 +5,7 @@ import { chromium } from 'playwright-chromium';
 import { summarizeShareEvidence } from './shein-share-evidence.mjs';
 import { parseSheinShareBff } from './shein-share-bff-items.mjs';
 import { PRICING_COUNTRY, trustedShareHost, uaeSharedLandingUrl, uaeShareRequest } from './shein-ae-pricing.mjs';
+import { landingFromOnelinkHtml } from './shein-onelink-landing.mjs';
 
 const MAX_RESPONSE_BYTES = 2_500_000;
 const MAX_ITEMS = 60;
@@ -367,7 +368,22 @@ if (!allowed(targetUrl)) {
       responseTasks.push(task);
     });
 
-    const directAeLanding = uaeSharedLandingUrl(targetUrl, '', shareHost);
+    let directAeLanding = uaeSharedLandingUrl(targetUrl, '', shareHost);
+    // Admin tests call this worker directly, without Laravel's URL resolver.
+    // Resolve the static deeplink before OneLink's script redirects to home.
+    if (!directAeLanding && new URL(targetUrl).hostname === 'onelink.shein.com') {
+      try {
+        const shortResponse = await context.request.get(targetUrl, {
+          timeout: Math.min(10_000, timeoutMs), maxRedirects: 0,
+        });
+        try {
+          if (shortResponse.ok()) {
+            const landing = landingFromOnelinkHtml(await shortResponse.text(), targetUrl);
+            if (landing) directAeLanding = uaeSharedLandingUrl(targetUrl, landing, shareHost);
+          }
+        } finally { await shortResponse.dispose(); }
+      } catch { /* Existing browser redirect resolution remains the fallback. */ }
+    }
     await page.goto(directAeLanding || targetUrl, { waitUntil:'domcontentloaded', timeout:timeoutMs });
     // A short SHEIN onelink can hide the groupId until the redirect resolves.
     // Once resolved, navigate to the UAE share landing without replacing shc.
@@ -390,7 +406,7 @@ if (!allowed(targetUrl)) {
     // Playwright's context.request shares the Chromium context's cookies, but
     // isn't blocked by a cross-origin browser page's CORS restrictions.
     // This does NOT authenticate the account or bypass SHEIN access controls.
-    const targetShare = shareContextFor(targetUrl, finalUrl);
+    const targetShare = shareContextFor(targetUrl, directAeLanding || finalUrl);
     const directBffAttempted = !bffAePriceVerified && Boolean(targetShare.groupId) && sheinUrl(finalUrl);
     let directBffHttpStatus = 0;
     let directBffOutcome = targetShare.groupId ? 'not_attempted' : 'missing_group_id';
