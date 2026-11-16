@@ -192,6 +192,8 @@
                 @php($readinessLabels = [
                     'no_owner_session' => 'جلسة SHEIN غير محفوظة أو منتهية',
                     'redirected_or_non_cart_page' => 'المتصفح لم يصل لصفحة سلة www.shein.com',
+                    'cart_page_unavailable' => 'وصل المتصفح إلى رابط السلة، لكن SHEIN عرضت صفحة خطأ بدل محتوياتها',
+                    'probe_timeout' => 'انتهت مهلة فحص سلة الحساب؛ لم يُعتمد أي سعر',
                     'access_limited' => 'SHEIN طلب تحققًا أو قيّد الوصول',
                     'login_required' => 'يبدو أن حساب SHEIN يحتاج تسجيل الدخول مجددًا',
                     'empty_cart_observed' => 'تظهر السلة فارغة، يمكن دراسة مزامنتها مع الحفاظ على الحالة',

@@ -220,7 +220,10 @@ class SheinAccountSessionController extends Controller
         try {
             $result = Process::path(base_path())
                 ->timeout(40)
-                ->input(json_encode(['accountSession' => $state], JSON_THROW_ON_ERROR))
+                ->input(json_encode([
+                    'accountSession' => $state,
+                    'headless' => (bool) config('services.cart_import.shein_browser.headless', true),
+                ], JSON_THROW_ON_ERROR))
                 ->run([
                     (string) config('services.cart_import.shein_browser.node_binary', 'node'),
                     $worker,
@@ -237,6 +240,7 @@ class SheinAccountSessionController extends Controller
             'access_limited', 'login_required', 'empty_cart_observed',
             'existing_cart_must_be_preserved', 'cart_state_unclear',
             'probe_failed', 'probe_unavailable',
+            'cart_page_unavailable', 'probe_timeout',
         ];
         $status = is_array($decoded) ? ($decoded['status'] ?? '') : '';
         $status = in_array($status, $statuses, true) ? $status : 'probe_failed';
