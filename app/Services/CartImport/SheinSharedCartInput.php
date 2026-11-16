@@ -13,6 +13,7 @@ final class SheinSharedCartInput
     public static function extract(string $input): string
     {
         $input = html_entity_decode(trim($input), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $input = preg_replace('/[\x{200B}\x{200C}\x{200D}\x{2060}\x{FEFF}]/u', '', $input) ?? $input;
 
         if (! preg_match_all('~https://[^\s\p{Z}<>"\']+~iu', $input, $matches)) {
             throw new InvalidArgumentException('الصقي رابط مشاركة SHEIN، حتى لو كان داخل رسالة المشاركة الكاملة.');

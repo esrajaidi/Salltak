@@ -57,6 +57,10 @@ class SheinAccountSessionController extends Controller
         }
 
         // This request alone may use the encrypted session while the public flow remains off.
+        if (function_exists('set_time_limit')) {
+            $budget = max(30, min(150, (int) config('services.cart_import.shein_browser.total_budget_seconds', 75)));
+            set_time_limit($budget + 45);
+        }
         $result = $browser->import($shareUrl, true);
         $rows = is_array($result['items'] ?? null) ? $result['items'] : [];
         $item = $rows[0] ?? [];
@@ -67,6 +71,7 @@ class SheinAccountSessionController extends Controller
             'account_session_applied' => (bool) ($result['meta']['account_session_applied'] ?? false),
             'ae_price_verified' => (bool) ($result['meta']['pricing_country_verified'] ?? false),
             'request_failure' => match ($result['meta']['direct_bff_error_category'] ?? '') {
+                'browser_network' => 'تعذر اتصال صفحة SHEIN بخدمة السلة',
                 'timeout' => 'انتهت مهلة الاتصال بخدمة السلة',
                 'dns' => 'تعذر العثور على عنوان خدمة السلة (DNS)',
                 'tls' => 'فشل التحقق من شهادة الاتصال الآمن (HTTPS)',
@@ -75,6 +80,12 @@ class SheinAccountSessionController extends Controller
                 'context_closed' => 'أُغلق المتصفح قبل اكتمال الطلب',
                 'unknown' => 'فشل اتصال غير مصنف',
                 default => null,
+            },
+            'worker_stage' => match ($result['meta']['worker_stage'] ?? '') {
+                'launch' => 'تشغيل المتصفح', 'session' => 'تحميل الجلسة',
+                'resolve' => 'استخراج رابط المشاركة', 'navigation' => 'فتح صفحة السلة',
+                'responses' => 'قراءة استجابات الصفحة', 'cart_request' => 'طلب بيانات السلة',
+                'extract' => 'استخراج المنتجات', default => null,
             },
         ]);
     }

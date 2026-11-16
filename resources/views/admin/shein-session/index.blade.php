@@ -93,6 +93,9 @@
                     @if(!empty($test['request_failure']))
                         <div>سبب تعذر طلب السلة: <strong>{{ $test['request_failure'] }}</strong></div>
                     @endif
+                    @if(!empty($test['worker_stage']))
+                        <div>مرحلة الاستيراد: <strong>{{ $test['worker_stage'] }}</strong></div>
+                    @endif
                     <div class="small mt-2">إرسال الجلسة للمتصفح لا يثبت وحده استمرار تسجيل الدخول. قارني السعر يدويًا في حسابك قبل التفعيل.</div>
                 </div>
             @endif
