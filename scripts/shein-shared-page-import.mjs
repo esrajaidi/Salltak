@@ -6,6 +6,7 @@ import { summarizeShareEvidence } from './shein-share-evidence.mjs';
 import { parseSheinShareBff } from './shein-share-bff-items.mjs';
 import { PRICING_COUNTRY, trustedShareHost, uaeSharedLandingUrl, uaeShareRequest } from './shein-ae-pricing.mjs';
 import { landingFromOnelinkHtml } from './shein-onelink-landing.mjs';
+import { requestFailureCategory } from './shein-request-failure.mjs';
 
 const MAX_RESPONSE_BYTES = 2_500_000;
 const MAX_ITEMS = 60;
@@ -410,6 +411,7 @@ if (!allowed(targetUrl)) {
     const directBffAttempted = !bffAePriceVerified && Boolean(targetShare.groupId) && sheinUrl(finalUrl);
     let directBffHttpStatus = 0;
     let directBffOutcome = targetShare.groupId ? 'not_attempted' : 'missing_group_id';
+    let directBffErrorCategory = 'none';
     if (directBffAttempted) {
       try {
         const request = uaeShareRequest(finalUrl, targetShare.groupId, shareHost);
@@ -453,10 +455,11 @@ if (!allowed(targetUrl)) {
             }
           }
         }
-      } catch {
+      } catch (error) {
         // Only report a bounded diagnostic enum; never leak network errors,
         // URLs, share tokens, full response bodies or cookie material.
         directBffOutcome = 'request_failed';
+        directBffErrorCategory = requestFailureCategory(error);
       }
       await Promise.allSettled(responseTasks);
     }
@@ -706,6 +709,7 @@ if (!allowed(targetUrl)) {
       direct_bff_attempted: directBffAttempted,
       direct_bff_http_status: directBffHttpStatus,
       direct_bff_outcome: directBffOutcome,
+      direct_bff_error_category: directBffErrorCategory,
       share_response_seen: shareEvidence.shareResponseSeen,
       share_bound_candidate_count: shareEvidence.shareBoundCandidateCount,
       response_class_counts: shareEvidence.responseClassCounts,

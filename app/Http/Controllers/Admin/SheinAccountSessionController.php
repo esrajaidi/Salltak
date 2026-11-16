@@ -66,6 +66,16 @@ class SheinAccountSessionController extends Controller
             'first_price_usd' => $item['unit_price_original'] ?? null,
             'account_session_applied' => (bool) ($result['meta']['account_session_applied'] ?? false),
             'ae_price_verified' => (bool) ($result['meta']['pricing_country_verified'] ?? false),
+            'request_failure' => match ($result['meta']['direct_bff_error_category'] ?? '') {
+                'timeout' => 'انتهت مهلة الاتصال بخدمة السلة',
+                'dns' => 'تعذر العثور على عنوان خدمة السلة (DNS)',
+                'tls' => 'فشل التحقق من شهادة الاتصال الآمن (HTTPS)',
+                'connection_reset' => 'انقطع الاتصال بخدمة السلة',
+                'connection_refused' => 'رُفض الاتصال بخدمة السلة',
+                'context_closed' => 'أُغلق المتصفح قبل اكتمال الطلب',
+                'unknown' => 'فشل اتصال غير مصنف',
+                default => null,
+            },
         ]);
     }
 

@@ -90,6 +90,9 @@
                     <div>سعر أول منتج: <strong>{{ $test['first_price_usd'] !== null ? number_format((float)$test['first_price_usd'],2).' $' : 'لم يتوفر' }}</strong></div>
                     <div>تطبيق الجلسة: <strong>{{ $test['account_session_applied'] ? 'نعم، تم إرسال الجلسة إلى المتصفح' : 'لا' }}</strong></div>
                     <div>دليل سعر الإمارات: <strong>{{ $test['ae_price_verified'] ? 'متوفر' : 'غير مؤكد' }}</strong></div>
+                    @if(!empty($test['request_failure']))
+                        <div>سبب تعذر طلب السلة: <strong>{{ $test['request_failure'] }}</strong></div>
+                    @endif
                     <div class="small mt-2">إرسال الجلسة للمتصفح لا يثبت وحده استمرار تسجيل الدخول. قارني السعر يدويًا في حسابك قبل التفعيل.</div>
                 </div>
             @endif
