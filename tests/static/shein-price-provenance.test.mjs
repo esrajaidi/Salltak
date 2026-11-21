@@ -33,3 +33,7 @@ test('customer preview distinguishes AED storefront evidence from logged-in acco
   assert.doesNotMatch(view, /السعر المستورد قبل كوبونات الحساب/);
   assert.match(cart, /'import_status' => \$result->status/);
 });
+
+ test('empty imports cannot claim that products and prices were fetched', () => {
+  assert.match(view, /empty\(\$previewItems\) \? 'تعذر جلب منتجات السلة' : \(\$sheinPriceNeedsReview/);
+});

@@ -48,7 +48,7 @@
             <div class="alert {{ $result->status === 'success' && !$sheinPriceNeedsReview ? 'alert-success' : 'alert-warning' }} border-0 import-alert mb-3">
                 <div class="import-alert-icon"><x-icon :name="$result->status === 'success' && !$sheinPriceNeedsReview ? 'check' : 'warning'" size="22" /></div>
                 <div class="flex-grow-1">
-                    <div class="fw-bold">{{ $sheinPriceNeedsReview ? ($strictAccountPricing ? 'تم جلب المنتجات — الأسعار تحتاج تأكيد من حساب الشراء' : 'تم جلب منتجات السلة وأسعارها التقديرية') : ($result->status === 'success' ? 'تم جلب السلة' : 'تحتاج مراجعة') }}</div>
+                    <div class="fw-bold">{{ empty($previewItems) ? 'تعذر جلب منتجات السلة' : ($sheinPriceNeedsReview ? ($strictAccountPricing ? 'تم جلب المنتجات — الأسعار تحتاج تأكيد من حساب الشراء' : 'تم جلب منتجات السلة وأسعارها التقديرية') : ($result->status === 'success' ? 'تم جلب السلة' : 'تحتاج مراجعة')) }}</div>
                     <div class="small mt-1">{{ $result->message }}</div>
                     @if($result->status === 'success')
                         <div class="small mt-1">تم العثور على <strong>{{ count($previewItems) }}</strong> منتج/منتجات من السلة.</div>
