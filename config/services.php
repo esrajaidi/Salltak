@@ -7,7 +7,7 @@ return [
             'enabled' => filter_var(env('SHEIN_BROWSER_ENABLED', true), FILTER_VALIDATE_BOOL),
             // Never substitute prices from m.shein.com or a guest share for the
             // purchaser's www.shein.com session. Disable only for legacy tests.
-            'www_owner_prices_only' => filter_var(env('SHEIN_WWW_OWNER_PRICES_ONLY', true), FILTER_VALIDATE_BOOL),
+            'www_owner_prices_only' => filter_var(env('SHEIN_WWW_OWNER_PRICES_ONLY', false), FILTER_VALIDATE_BOOL),
             'node_binary' => env('SHEIN_BROWSER_NODE', 'node'),
             'headless' => filter_var(env('SHEIN_BROWSER_HEADLESS', true), FILTER_VALIDATE_BOOL),
             'timeout_ms' => (int) env('SHEIN_BROWSER_TIMEOUT_MS', 35000),
