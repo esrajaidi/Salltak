@@ -116,6 +116,23 @@ class SheinBrowserImporter
                     return $mobile;
                 }
 
+                // Mobile navigation may resolve a OneLink identity even when
+                // its product request fails. Reuse that exact identity on www
+                // instead of resolving the opaque short link again.
+                $resolvedRetryUrl = $this->resolvedSharedRetryUrl($url, (string) ($mobile['final_url'] ?? ''));
+                if ($resolvedRetryUrl !== null && ! ($shared['meta']['share_group_id_present'] ?? false)) {
+                    $resolvedProfile = storage_path('app/shein-shared-resolved/'.Str::uuid());
+                    try {
+                        $resolved = $this->runWorker($resolvedRetryUrl, $resolvedProfile, $sharedPageScript, 'shared_www_resolved', $traceId, $accountState, 'www.shein.com');
+                    } finally {
+                        File::deleteDirectory($resolvedProfile);
+                    }
+                    $resolved = $this->withAttemptMeta($resolved, 3, true);
+                    $resolved['items'] = SheinImportedItemCleaner::clean($resolved['items'] ?? []);
+                    $resolved['meta']['share_identity_reused'] = true;
+                    return $resolved;
+                }
+
                 $shared['meta']['mobile_fallback_status'] = (string) ($mobile['status'] ?? 'failed');
                 $shared['meta']['mobile_fallback_empty'] = true;
             }
@@ -431,6 +448,35 @@ class SheinBrowserImporter
         $decoded['meta'] = is_array($decoded['meta'] ?? null) ? $decoded['meta'] : [];
 
         return $decoded;
+    }
+
+    private function resolvedSharedRetryUrl(string $original, string $resolved): ?string
+    {
+        $source = parse_url($original);
+        $target = parse_url($resolved);
+        if (! is_array($source) || ! is_array($target)
+            || ($source['scheme'] ?? '') !== 'https'
+            || ($target['scheme'] ?? '') !== 'https'
+            || ! in_array($source['host'] ?? '', ['onelink.shein.com', 'www.shein.com', 'm.shein.com', 'shein.com'], true)
+            || ! in_array($target['host'] ?? '', ['www.shein.com', 'm.shein.com'], true)
+            || isset($target['user']) || isset($target['pass']) || isset($target['port'])
+            || ! preg_match('~^/(?:[a-z]{2}/)?cart/share/landing/?$~', $target['path'] ?? '')) {
+            return null;
+        }
+        parse_str($source['query'] ?? '', $sourceQuery);
+        parse_str($target['query'] ?? '', $targetQuery);
+        $token = $sourceQuery['shc'] ?? null;
+        $group = $targetQuery['group_id'] ?? null;
+        if (! is_string($token) || ! preg_match('/^2_[A-Za-z0-9_-]{4,120}$/', $token)
+            || ($targetQuery['shc'] ?? null) !== $token
+            || ! is_string($group) || ! preg_match('/^\d{6,20}$/', $group)
+            || (isset($sourceQuery['group_id']) && $sourceQuery['group_id'] !== $group)) {
+            return null;
+        }
+
+        return 'https://www.shein.com/ar/cart/share/landing?'.http_build_query([
+            'group_id' => $group, 'shc' => $token, 'local_country' => 'AE', 'cart_share' => '1',
+        ]);
     }
 
     /**
