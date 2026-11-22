@@ -1,4 +1,4 @@
-import { uaeSharedLandingUrl } from './shein-ae-pricing.mjs';
+import { uaeSharedLandingUrl, isSheinGroupId } from './shein-ae-pricing.mjs';
 
 // Read only SHEIN's static cart deeplink. Never execute remote JavaScript or
 // infer a cart from a homepage, recommendations, or an unrelated group ID.
@@ -21,7 +21,7 @@ export function landingFromOnelinkHtml(html, original) {
       const data = JSON.parse(deep.searchParams.get('data') || 'null');
       if (!data || typeof data !== 'object' || Array.isArray(data)
           || (data.share_type !== undefined && data.share_type !== 'cart')
-          || data.shc !== token || !/^\d{6,20}$/.test(String(data.group_id || ''))) continue;
+          || data.shc !== token || !isSheinGroupId(data.group_id)) continue;
       const landing = new URL('https://www.shein.com/ar/cart/share/landing');
       landing.searchParams.set('group_id', String(data.group_id));
       landing.searchParams.set('shc', token);

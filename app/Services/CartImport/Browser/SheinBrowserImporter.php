@@ -469,7 +469,7 @@ class SheinBrowserImporter
         $group = $targetQuery['group_id'] ?? null;
         if (! is_string($token) || ! preg_match('/^2_[A-Za-z0-9_-]{4,120}$/', $token)
             || ($targetQuery['shc'] ?? null) !== $token
-            || ! is_string($group) || ! preg_match('/^\d{6,20}$/', $group)
+            || ! \App\Services\CartImport\SheinSharedCartInput::isValidGroupId($group)
             || (isset($sourceQuery['group_id']) && $sourceQuery['group_id'] !== $group)) {
             return null;
         }

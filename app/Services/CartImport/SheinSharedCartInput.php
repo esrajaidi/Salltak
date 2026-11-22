@@ -56,6 +56,12 @@ final class SheinSharedCartInput
 
         parse_str((string) ($parts['query'] ?? ''), $query);
         $groupId = $query['group_id'] ?? null;
-        return is_string($groupId) && (bool) preg_match('/^\d{6,20}$/D', $groupId);
+        return self::isValidGroupId($groupId);
     }
+    public static function isValidGroupId(mixed $value): bool
+    {
+        return is_string($value)
+            && (bool) preg_match('~^(?:[0-9]{6,20}|[A-Za-z0-9+/_-]{32,1024}={0,2})$~D', $value);
+    }
+
 }

@@ -11,6 +11,13 @@ export function trustedShareHost(host) {
   return host === FALLBACK_SHARE_HOST ? FALLBACK_SHARE_HOST : PRIMARY_SHEIN_HOST;
 }
 
+// SHEIN also emits opaque group IDs in its signed cart deeplinks.
+// Treat them as identifiers; never decode, shorten or coerce them to numbers.
+export function isSheinGroupId(value) {
+  return typeof value === 'string'
+    && /^(?:[0-9]{6,20}|[A-Za-z0-9+/_-]{32,1024}={0,2})$/.test(value);
+}
+
 function safeShein(url) {
   try {
     const parsed = new URL(String(url || ''));
@@ -25,7 +32,7 @@ export function uaeSharedLandingUrl(originalUrl, redirectedUrl = '', shareHost =
   const original = safeShein(originalUrl);
   const redirected = safeShein(redirectedUrl);
   const groupId = original?.searchParams.get('group_id') || redirected?.searchParams.get('group_id');
-  if (!groupId || !/^\d{6,20}$/.test(groupId)) return '';
+  if (!groupId || !isSheinGroupId(groupId)) return '';
   const result = new URL('https://' + trustedShareHost(shareHost) + '/ar/cart/share/landing');
   result.searchParams.set('group_id', groupId);
   const shc = original?.searchParams.get('shc') || redirected?.searchParams.get('shc');
@@ -40,7 +47,7 @@ export function uaeSharedLandingUrl(originalUrl, redirectedUrl = '', shareHost =
 export function uaeShareRequest(url, expectedGroupId = '', shareHost = PRIMARY_SHEIN_HOST) {
   const u = safeShein(url);
   const groupId = String(expectedGroupId || '').trim();
-  if (!u || !/^\d{6,20}$/.test(groupId)) return null;
+  if (!u || !isSheinGroupId(groupId)) return null;
   return {
     endpoint: 'https://' + trustedShareHost(shareHost) + '/ar/bff-api/order/cart/share/landing?_ver=1.1.8&_lang=ar',
     body: { groupId, localCountry: PRICING_COUNTRY, userLocalSizeCountry: '' },

@@ -28,3 +28,16 @@ test('rejects mismatched token, invalid identity, and non-onelink sources', () =
   assert.equal(landingFromOnelinkHtml(html('941308490', '2_originalToken'), 'https://evil.test/'), '');
   assert.equal(landingFromOnelinkHtml('<script>group_id=941308490</script>', original), '');
 });
+
+test('opaque signed group identities survive deeplink and BFF request unchanged', async () => {
+  const { uaeShareRequest, isSheinGroupId } = await import('../../scripts/shein-ae-pricing.mjs');
+  const group = 'gIz' + 'Ab9_-'.repeat(30) + '=';
+  const original = 'https://onelink.shein.com/61/example?shc=2_originalToken';
+  const landing = landingFromOnelinkHtml(html(group, '2_originalToken'), original);
+  assert.equal(new URL(landing).searchParams.get('group_id'), group);
+  assert.equal(uaeShareRequest(landing, group).body.groupId, group);
+  assert.equal(landingFromOnelinkHtml(html(group, '2_otherToken'), original), '');
+  for (const invalid of ['invalid', 'A'.repeat(1027), 'A'.repeat(32) + '<', 'A'.repeat(32) + '\n', {}]) {
+    assert.equal(isSheinGroupId(invalid), false);
+  }
+});
