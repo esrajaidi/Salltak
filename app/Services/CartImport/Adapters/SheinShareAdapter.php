@@ -134,7 +134,7 @@ class SheinShareAdapter implements CartSourceAdapter
 
             if ($isSharedCart) {
                 return ImportResult::needsReview(
-                    'تم جلب منتجات السلة، لكن الأسعار تقديرية من مشاركة SHEIN ولم يتم إثبات أنها أسعار حساب الشراء بعد تسجيل الدخول على www.shein.com. راجعي السعر قبل اعتماد الطلب.',
+                    'تم جلب منتجات السلة وأسعارها من مشاركة SHEIN. الأسعار تقديرية وقد تختلف عند تأكيد الشراء.',
                     items: $browserItems,
                     currency: $currency,
                     meta: $browserMeta

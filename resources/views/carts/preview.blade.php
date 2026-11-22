@@ -24,6 +24,7 @@
     // Region-specific price evidence does NOT authenticate the purchaser's
     // account or validate its SKU-level discounted purchase price.
     $accountPriceVerified = (bool) ($result->meta['account_price_verified'] ?? false);
+    $strictAccountPricing = (bool) config('services.cart_import.shein_browser.www_owner_prices_only', false);
     $sheinPriceNeedsReview = $isSheinShare && !$accountPriceVerified;
     $countryLabel = match(strtoupper((string)($result->meta['local_country'] ?? ''))) {
         'AE' => 'الإمارات',
@@ -47,7 +48,7 @@
             <div class="alert {{ $result->status === 'success' && !$sheinPriceNeedsReview ? 'alert-success' : 'alert-warning' }} border-0 import-alert mb-3">
                 <div class="import-alert-icon"><x-icon :name="$result->status === 'success' && !$sheinPriceNeedsReview ? 'check' : 'warning'" size="22" /></div>
                 <div class="flex-grow-1">
-                    <div class="fw-bold">{{ $sheinPriceNeedsReview ? 'تم جلب المنتجات — الأسعار تحتاج تأكيد من حساب الشراء' : ($result->status === 'success' ? 'تم جلب السلة' : 'تحتاج مراجعة') }}</div>
+                    <div class="fw-bold">{{ empty($previewItems) ? 'تعذر جلب منتجات السلة' : ($sheinPriceNeedsReview ? ($strictAccountPricing ? 'تم جلب المنتجات — الأسعار تحتاج تأكيد من حساب الشراء' : 'تم جلب منتجات السلة وأسعارها التقديرية') : ($result->status === 'success' ? 'تم جلب السلة' : 'تحتاج مراجعة')) }}</div>
                     <div class="small mt-1">{{ $result->message }}</div>
                     @if($result->status === 'success')
                         <div class="small mt-1">تم العثور على <strong>{{ count($previewItems) }}</strong> منتج/منتجات من السلة.</div>
@@ -56,22 +57,22 @@
             </div>
 
             @if(!empty($result->meta['group_id']))
-                <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 p-3 rounded-4 border bg-light mb-4">
-                    <div>
+                <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 p-3 rounded-4 border bg-light mb-4 overflow-hidden">
+                    <div class="w-100" style="min-width:0">
                         <div class="small text-secondary">سلة SHEIN المشتركة</div>
-                        <div class="fw-bold mt-1">رقم المجموعة <span class="ltr d-inline-block">#{{ $result->meta['group_id'] }}</span></div>
+                        <div class="fw-bold mt-1">رقم المجموعة <span class="ltr d-inline-block text-break" style="overflow-wrap:anywhere;max-width:100%">#{{ $result->meta['group_id'] }}</span></div>
                         @if($countryLabel)<div class="small text-secondary mt-1">بلد الرابط الأصلي: {{ $countryLabel }}</div>@endif
                         <div class="small fw-semibold mt-1">بلد التسعير المطلوب: الإمارات (AE)</div>
                         @if($uaePriceVerified)
-                            <div class="small text-secondary mt-1">استجابة مشاركة السلة تشير إلى أسعار الإمارات (AED)، لكن هذا لا يعني تطابق السعر مع حساب الشراء بعد Login.</div>
+                            <div class="small text-secondary mt-1">استجابة مشاركة السلة تشير إلى منطقة تسعير الإمارات.</div>
                         @else
-                            <div class="small text-warning-emphasis mt-1">لم يتم تأكيد منطقة السعر أو تطابقه مع حساب الشراء.</div>
+                            <div class="small text-warning-emphasis mt-1">لم يتم تأكيد منطقة السعر لهذه المحاولة.</div>
                         @endif
-                        @if($sheinPriceNeedsReview)
+                        @if($sheinPriceNeedsReview && $strictAccountPricing)
                             <div class="small text-warning-emphasis fw-bold mt-2">سعر SHEIN الظاهر في حساب الشراء على www.shein.com هو المرجع وقت المراجعة. الأسعار المعروضة هنا تقديرية وغير مؤكدة.</div>
                         @endif
                     </div>
-                    <form method="POST" action="{{ route('carts.analyze') }}" class="m-0">
+                    <form method="POST" action="{{ route('carts.analyze') }}" class="m-0 flex-shrink-0">
                         @csrf
                         <input type="hidden" name="source_url" value="{{ $sourceUrl }}">
                         <button class="btn btn-outline-primary btn-sm icon-text-btn" type="submit"><x-icon name="activity" size="16" /> إعادة جلب السلة</button>
@@ -102,7 +103,7 @@
                     <div class="cart-toolbar d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 mb-3">
                         <div>
                             <h2 class="h5 fw-bold mb-1">منتجات السلة</h2>
-                            <div class="small text-secondary">{{ $sheinPriceNeedsReview ? 'منتجات السلة مستوردة، لكن سعر كل قطعة تقديري وليس سعر حساب الشراء المؤكد بعد Login.' : 'السعر المستورد قد يختلف عن سعر الشراء النهائي.' }}</div>
+                            <div class="small text-secondary">{{ $sheinPriceNeedsReview ? 'الأسعار مستوردة من مشاركة SHEIN، وقد تختلف بعد الخصومات وعند تأكيد الشراء.' : 'السعر المستورد قد يختلف عن سعر الشراء النهائي.' }}</div>
                         </div>
                         <div class="price-lock-pill">@if($sheinPriceNeedsReview)<x-icon name="warning" size="16" /> أسعار SHEIN تقديرية — لم تُؤكّد من حساب الشراء @else<x-icon name="check" size="16" /> الأسعار محمية من التعديل @endif</div>
                     </div>
@@ -147,7 +148,7 @@
                                                 <div class="price-box">
                                                     <span class="price-label">سعر القطعة</span>
                                                     <div class="price-value original-price">{{ number_format((float)($item['unit_price_original'] ?? 0), 2) }} {{ $currencyLabel }}</div>
-                                                    <div class="price-lock-note">@if($sheinPriceNeedsReview)<x-icon name="warning" size="14" /> سعر تقديري من SHEIN، مش سعر حسابك بعد Login @else<x-icon name="check" size="14" /> السعر المستورد من المصدر @endif</div>
+                                                    <div class="price-lock-note">@if($sheinPriceNeedsReview)<x-icon name="warning" size="14" /> سعر السلة المشتركة — تقديري @else<x-icon name="check" size="14" /> السعر المستورد من المصدر @endif</div>
                                                 </div>
                                                 <div class="price-box lyd">
                                                     <span class="price-label">بالدينار الليبي</span>

@@ -24,12 +24,15 @@ jobs:
           node --check scripts/shein-shared-page-import.mjs
           node --check scripts/shein-login-local.mjs
           node --check scripts/shein-shared-page-retry.mjs
+      - name: Cart transport and response deadline regressions
+        run: node --test tests/Node/*.test.mjs
       - name: Static account session tests
         run: node --test tests/static/shein-owner-session.test.mjs
       - name: PHP controller and vault syntax
         run: |
           php -l app/Services/CartImport/SheinSessionVault.php
           php -l app/Http/Controllers/Admin/SheinAccountSessionController.php
+          php -l app/Http/Controllers/CartController.php
           php -l app/Services/CartImport/Browser/SheinBrowserImporter.php
           php -l database/migrations/2026_10_09_210000_create_shein_account_sessions_table.php
           php -l routes/web.php

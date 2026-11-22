@@ -30,14 +30,14 @@ class SheinBrowserImporter
         $budget = max(30, min(150, (int) config('services.cart_import.shein_browser.total_budget_seconds', 75)));
         $this->importDeadline = microtime(true) + $budget;
 
-        // A null override follows the vault's admin activation flag. True is
-        // only passed by the protected admin test; false always means guest.
-        $accountState = $useOwnerSession === false ? null
-            : app(SheinSessionVault::class)->read($useOwnerSession === true);
-        // The user buys on www.shein.com: never silently price an owner's
-        // customer cart with mobile/guest/public account-agnostic quotations.
-        // Absence of a configured session is NOT proof the share is empty.
-        $wwwOnly = (bool) config('services.cart_import.shein_browser.www_owner_prices_only', true);
+        // Normal imports use shared-cart estimates without an account session.
+        // Strict purchaser pricing remains an explicit opt-in. Protected admin
+        // tests can still request the stored session even when it is disabled.
+        $wwwOnly = (bool) config('services.cart_import.shein_browser.www_owner_prices_only', false);
+        $withOwnerSession = $useOwnerSession ?? $wwwOnly;
+        $accountState = $withOwnerSession
+            ? app(SheinSessionVault::class)->read($useOwnerSession === true)
+            : null;
         if ($wwwOnly && $this->isSharedCartUrl($url) && $accountState === null) {
             return [
                 'ok' => false,
@@ -109,11 +109,28 @@ class SheinBrowserImporter
                     $mobile = $this->withAttemptMeta($mobile, 2, true);
                     $mobile['items'] = SheinImportedItemCleaner::clean($mobile['items']);
                     $mobile['status'] = 'mobile_share_price_needs_review';
-                    $mobile['message'] = 'تعذر جلب السلة من www.shein.com. تم استرجاعها من خدمة المشاركة m.shein.com بأسعار تحتاج مراجعة من حساب الشراء.';
+                    $mobile['message'] = 'تعذر جلب السلة من www.shein.com. تم استرجاع منتجات السلة وأسعارها التقديرية من خدمة مشاركة SHEIN.';
                     $mobile['meta']['www_attempt_status'] = (string) ($shared['status'] ?? 'failed');
                     $mobile['meta']['mobile_fallback_used'] = true;
                     $mobile['meta']['share_fetch_host'] = 'm.shein.com';
                     return $mobile;
+                }
+
+                // Mobile navigation may resolve a OneLink identity even when
+                // its product request fails. Reuse that exact identity on www
+                // instead of resolving the opaque short link again.
+                $resolvedRetryUrl = $this->resolvedSharedRetryUrl($url, (string) ($mobile['final_url'] ?? ''));
+                if ($resolvedRetryUrl !== null && ! ($shared['meta']['share_group_id_present'] ?? false)) {
+                    $resolvedProfile = storage_path('app/shein-shared-resolved/'.Str::uuid());
+                    try {
+                        $resolved = $this->runWorker($resolvedRetryUrl, $resolvedProfile, $sharedPageScript, 'shared_www_resolved', $traceId, $accountState, 'www.shein.com');
+                    } finally {
+                        File::deleteDirectory($resolvedProfile);
+                    }
+                    $resolved = $this->withAttemptMeta($resolved, 3, true);
+                    $resolved['items'] = SheinImportedItemCleaner::clean($resolved['items'] ?? []);
+                    $resolved['meta']['share_identity_reused'] = true;
+                    return $resolved;
                 }
 
                 $shared['meta']['mobile_fallback_status'] = (string) ($mobile['status'] ?? 'failed');
@@ -161,7 +178,7 @@ class SheinBrowserImporter
                 $actualBffHost = (string) ($shared['meta']['bound_bff_response_host'] ?? '');
                 if ($actualBffHost === 'm.shein.com') {
                     $shared['status'] = 'mobile_share_price_needs_review';
-                    $shared['message'] = 'تمت إعادة توجيه قراءة السلة إلى خدمة SHEIN المتنقلة. الأسعار للمراجعة وليست أسعار حساب الشراء المؤكدة.';
+                    $shared['message'] = 'تمت إعادة توجيه قراءة السلة إلى خدمة SHEIN المتنقلة. الأسعار تقديرية وقد تختلف عند تأكيد الشراء.';
                     $shared['meta']['mobile_fallback_used'] = true;
                     $shared['meta']['share_fetch_host'] = 'm.shein.com';
                 }
@@ -193,6 +210,12 @@ class SheinBrowserImporter
                 return $shared;
             }
 
+            // The legacy desktop retry uses a separate parser and can hide
+            // the www request failure behind a second timeout. In www-only
+            // mode return the authenticated primary attempt unchanged.
+            if ($wwwOnly && $this->isSharedCartUrl($url)) {
+                return $shared;
+            }
             $shouldRetryShared = $this->isSharedCartUrl($url)
                 || in_array((string) ($shared['status'] ?? ''), ['missing_usd_prices', 'shared_page_unreadable', 'not_shared_page'], true);
 
@@ -280,12 +303,16 @@ class SheinBrowserImporter
         $startedAt = microtime(true);
         $result = $this->runWorkerRaw($url, $profileDir, $script, $accountState, $shareHost);
 
-        Log::channel('stderr')->info('SHEIN import attempt', SheinImportDiagnostics::attempt(
+        $diagnostic = SheinImportDiagnostics::attempt(
             $result,
             $stage,
             $traceId,
             (int) round((microtime(true) - $startedAt) * 1000)
-        ));
+        );
+        // Keep server-console telemetry and a predictable local support log.
+        // Only the allowlisted aggregate diagnostic is written to either sink.
+        Log::channel('stderr')->info('SHEIN import attempt', $diagnostic);
+        Log::channel('single')->info('SHEIN import attempt', $diagnostic);
 
         return $result;
     }
@@ -316,6 +343,7 @@ class SheinBrowserImporter
         $input = json_encode([
             'url' => $url,
             'timeoutMs' => $browserTimeoutMs,
+            'workerBudgetMs' => max(5000, (min($workerSeconds, max(20, (int) config('services.cart_import.shein_browser.process_timeout', 110))) - 3) * 1000),
             'headless' => (bool) config('services.cart_import.shein_browser.headless', true),
             'profileDir' => $profileDir,
             'manualChallengeWaitMs' => max(0, (int) config('services.cart_import.shein_browser.manual_challenge_wait_ms', 60_000)),
@@ -424,6 +452,35 @@ class SheinBrowserImporter
         $decoded['meta'] = is_array($decoded['meta'] ?? null) ? $decoded['meta'] : [];
 
         return $decoded;
+    }
+
+    private function resolvedSharedRetryUrl(string $original, string $resolved): ?string
+    {
+        $source = parse_url($original);
+        $target = parse_url($resolved);
+        if (! is_array($source) || ! is_array($target)
+            || ($source['scheme'] ?? '') !== 'https'
+            || ($target['scheme'] ?? '') !== 'https'
+            || ! in_array($source['host'] ?? '', ['onelink.shein.com', 'www.shein.com', 'm.shein.com', 'shein.com'], true)
+            || ! in_array($target['host'] ?? '', ['www.shein.com', 'm.shein.com'], true)
+            || isset($target['user']) || isset($target['pass']) || isset($target['port'])
+            || ! preg_match('~^/(?:[a-z]{2}/)?cart/share/landing/?$~', $target['path'] ?? '')) {
+            return null;
+        }
+        parse_str($source['query'] ?? '', $sourceQuery);
+        parse_str($target['query'] ?? '', $targetQuery);
+        $token = $sourceQuery['shc'] ?? null;
+        $group = $targetQuery['group_id'] ?? null;
+        if (! is_string($token) || ! preg_match('/^2_[A-Za-z0-9_-]{4,120}$/', $token)
+            || ($targetQuery['shc'] ?? null) !== $token
+            || ! \App\Services\CartImport\SheinSharedCartInput::isValidGroupId($group)
+            || (isset($sourceQuery['group_id']) && $sourceQuery['group_id'] !== $group)) {
+            return null;
+        }
+
+        return 'https://www.shein.com/ar/cart/share/landing?'.http_build_query([
+            'group_id' => $group, 'shc' => $token, 'local_country' => 'AE', 'cart_share' => '1',
+        ]);
     }
 
     /**

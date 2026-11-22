@@ -13,6 +13,7 @@ final class SheinSharedCartInput
     public static function extract(string $input): string
     {
         $input = html_entity_decode(trim($input), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $input = preg_replace('/[\x{200B}\x{200C}\x{200D}\x{2060}\x{FEFF}]/u', '', $input) ?? $input;
 
         if (! preg_match_all('~https://[^\s\p{Z}<>"\']+~iu', $input, $matches)) {
             throw new InvalidArgumentException('الصقي رابط مشاركة SHEIN، حتى لو كان داخل رسالة المشاركة الكاملة.');
@@ -55,6 +56,12 @@ final class SheinSharedCartInput
 
         parse_str((string) ($parts['query'] ?? ''), $query);
         $groupId = $query['group_id'] ?? null;
-        return is_string($groupId) && (bool) preg_match('/^\d{6,20}$/D', $groupId);
+        return self::isValidGroupId($groupId);
     }
+    public static function isValidGroupId(mixed $value): bool
+    {
+        return is_string($value)
+            && (bool) preg_match('~^(?:[0-9]{6,20}|[A-Za-z0-9+/_-]{32,1024}={0,2})$~D', $value);
+    }
+
 }

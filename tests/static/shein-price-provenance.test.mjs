@@ -26,10 +26,14 @@ test('customer preview distinguishes AED storefront evidence from logged-in acco
   assert.match(view, /\$isSheinShare = \$isSheinSource/);
   assert.match(view, /\$result->meta\['price_source'\]/);
   assert.match(view, /أسعار SHEIN تقديرية/);
-  assert.match(view, /مش سعر حسابك بعد Login/);
-  assert.match(view, /لكن هذا لا يعني تطابق السعر مع حساب الشراء بعد Login/);
+  assert.match(view, /سعر السلة المشتركة — تقديري/);
+  assert.match(view, /\$sheinPriceNeedsReview && \$strictAccountPricing/);
   assert.match(view, /أسعار SHEIN تقديرية — لم تُؤكّد من حساب الشراء/);
   assert.match(view, /حفظ السلة للمراجعة/);
   assert.doesNotMatch(view, /السعر المستورد قبل كوبونات الحساب/);
   assert.match(cart, /'import_status' => \$result->status/);
+});
+
+ test('empty imports cannot claim that products and prices were fetched', () => {
+  assert.match(view, /empty\(\$previewItems\) \? 'تعذر جلب منتجات السلة' : \(\$sheinPriceNeedsReview/);
 });

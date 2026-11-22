@@ -181,7 +181,7 @@ class SheinUrlResolver
         parse_str((string) (parse_url($original, PHP_URL_QUERY) ?: ''), $shortQuery);
         $shc = $shortQuery['shc'] ?? null;
 
-        if (! preg_match('/^\d{6,20}$/D', $groupId)
+        if (! SheinSharedCartInput::isValidGroupId($groupId)
             || ! is_string($shc) || ! preg_match('/^2_[A-Za-z0-9_-]{4,120}$/D', $shc)
             || ($embeddedShc !== null && $embeddedShc !== $shc)) {
             return null;

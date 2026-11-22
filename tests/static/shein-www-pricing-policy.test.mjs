@@ -8,8 +8,9 @@ const config = fs.readFileSync('config/services.php', 'utf8');
 const admin = fs.readFileSync('resources/views/admin/shein-session/index.blade.php', 'utf8');
 const diag = fs.readFileSync('app/Services/CartImport/Browser/SheinImportDiagnostics.php', 'utf8');
 
-test('www owner account only is default for SHEIN cart prices', () => {
-  assert.match(config, /SHEIN_WWW_OWNER_PRICES_ONLY', true/);
+test('shared-cart estimates are default and strict account pricing is optional', () => {
+  assert.match(config, /SHEIN_WWW_OWNER_PRICES_ONLY', false/);
+  assert.match(importer, /\$withOwnerSession = \$useOwnerSession \?\? \$wwwOnly/);
   assert.match(importer, /'status' => 'account_session_required'/);
   assert.match(importer, /if \(\$wwwOnly && \$this->isSharedCartUrl\(\$url\) && \$accountState === null\)/);
   assert.match(importer, /'shared_www', \$traceId, \$accountState, 'www\.shein\.com'/);
