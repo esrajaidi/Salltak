@@ -57,10 +57,10 @@
             </div>
 
             @if(!empty($result->meta['group_id']))
-                <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 p-3 rounded-4 border bg-light mb-4">
-                    <div>
+                <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 p-3 rounded-4 border bg-light mb-4 overflow-hidden">
+                    <div class="w-100" style="min-width:0">
                         <div class="small text-secondary">سلة SHEIN المشتركة</div>
-                        <div class="fw-bold mt-1">رقم المجموعة <span class="ltr d-inline-block">#{{ $result->meta['group_id'] }}</span></div>
+                        <div class="fw-bold mt-1">رقم المجموعة <span class="ltr d-inline-block text-break" style="overflow-wrap:anywhere;max-width:100%">#{{ $result->meta['group_id'] }}</span></div>
                         @if($countryLabel)<div class="small text-secondary mt-1">بلد الرابط الأصلي: {{ $countryLabel }}</div>@endif
                         <div class="small fw-semibold mt-1">بلد التسعير المطلوب: الإمارات (AE)</div>
                         @if($uaePriceVerified)
@@ -72,7 +72,7 @@
                             <div class="small text-warning-emphasis fw-bold mt-2">سعر SHEIN الظاهر في حساب الشراء على www.shein.com هو المرجع وقت المراجعة. الأسعار المعروضة هنا تقديرية وغير مؤكدة.</div>
                         @endif
                     </div>
-                    <form method="POST" action="{{ route('carts.analyze') }}" class="m-0">
+                    <form method="POST" action="{{ route('carts.analyze') }}" class="m-0 flex-shrink-0">
                         @csrf
                         <input type="hidden" name="source_url" value="{{ $sourceUrl }}">
                         <button class="btn btn-outline-primary btn-sm icon-text-btn" type="submit"><x-icon name="activity" size="16" /> إعادة جلب السلة</button>

@@ -303,12 +303,16 @@ class SheinBrowserImporter
         $startedAt = microtime(true);
         $result = $this->runWorkerRaw($url, $profileDir, $script, $accountState, $shareHost);
 
-        Log::channel('stderr')->info('SHEIN import attempt', SheinImportDiagnostics::attempt(
+        $diagnostic = SheinImportDiagnostics::attempt(
             $result,
             $stage,
             $traceId,
             (int) round((microtime(true) - $startedAt) * 1000)
-        ));
+        );
+        // Keep server-console telemetry and a predictable local support log.
+        // Only the allowlisted aggregate diagnostic is written to either sink.
+        Log::channel('stderr')->info('SHEIN import attempt', $diagnostic);
+        Log::channel('single')->info('SHEIN import attempt', $diagnostic);
 
         return $result;
     }
